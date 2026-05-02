@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  tracker:
+    build:
+      context: ./tracker
+      dockerfile: Dockerfile
+    container_name: p2p_tracker
+    ports:
+      - "5000:5000"
+    networks:
+      - p2p_network
+    restart: unless-stopped
+
+  peer1:
+    build:
+      context: ./peer
+      dockerfile: Dockerfile
+    container_name: p2p_peer1
+    environment:
+      - TRACKER_HOST=tracker
+      - TRACKER_PORT=5000
+      - PEER_PORT=6001
+      - PEER_ID=peer1
+    ports:
+      - "6001:6001"
+    volumes:
+      - ./shared_files:/app/shared_files
+    networks:
+      - p2p_network
+    depends_on:
+      - tracker
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  peer2:
+    build:
+      context: ./peer
+      dockerfile: Dockerfile
+    container_name: p2p_peer2
+    environment:
+      - TRACKER_HOST=tracker
+      - TRACKER_PORT=5000
+      - PEER_PORT=6002
+      - PEER_ID=peer2
+    ports:
+      - "6002:6002"
+    volumes:
+      - ./shared_files:/app/shared_files
+    networks:
+      - p2p_network
+    depends_on:
+      - tracker
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  peer3:
+    build:
+      context: ./peer
+      dockerfile: Dockerfile
+    container_name: p2p_peer3
+    environment:
+      - TRACKER_HOST=tracker
+      - TRACKER_PORT=5000
+      - PEER_PORT=6003
+      - PEER_ID=peer3
+    ports:
+      - "6003:6003"
+    volumes:
+      - ./shared_files:/app/shared_files
+    networks:
+      - p2p_network
+    depends_on:
+      - tracker
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+networks:
+  p2p_network:
+    driver: bridge
