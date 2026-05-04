@@ -8,6 +8,7 @@ COPY heartbeat.py .
 COPY replication.py .
 COPY ui.py .
 COPY peer.py .
+COPY web_gateway.py .
 
 # Criar diretório para arquivos
 RUN mkdir -p /app/files

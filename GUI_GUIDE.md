@@ -1,218 +1,507 @@
-# 🎨 Guia de Uso - Interface Gráfica
+# Guia de Uso da Aplicacao P2P
 
-## 📋 Requisitos
+Este documento explica como executar e usar o sistema P2P de compartilhamento de arquivos, tanto pela interface grafica quanto pela interface CLI em Docker. O sistema usa um tracker central para registrar peers e metadados, enquanto os arquivos sao transferidos diretamente entre peers.
+
+## 1. Visao Geral
+
+A aplicacao possui estes componentes principais:
+
+- **Tracker**: servidor central que registra peers ativos, arquivos publicados e localizacao das replicas.
+- **Peer**: no da rede que publica, busca, baixa e serve arquivos para outros peers.
+- **GUI do Peer**: interface grafica em Tkinter para operar um peer localmente.
+- **CLI do Peer**: interface de terminal usada principalmente nos containers Docker.
+- **Prometheus/Grafana/Node Exporter**: stack de observabilidade para acompanhar consumo da VM e metricas da rede P2P.
+
+## 2. Pre-requisitos
+
+Para executar com Docker:
+
+- Docker
+- Docker Compose
+
+Para executar a GUI localmente:
 
 - Python 3.8 ou superior
-- tkinter (geralmente já incluído no Python)
-- Conexão com o tracker
+- Tkinter
+- Acesso ao tracker na porta configurada, por padrao `5000`
 
-## 🚀 Iniciando o Sistema com Interface Gráfica
+No Linux, se o Tkinter nao estiver instalado:
 
-### Opção 1: Script PowerShell (Recomendado para Windows)
+```bash
+sudo apt-get install python3-tk
+```
 
-1. Execute o script de inicialização:
+Para testar se o Tkinter esta disponivel:
+
+```bash
+python3 -c "import tkinter; print('OK')"
+```
+
+## 3. Execucao com Docker
+
+Na raiz do projeto, execute:
+
+```bash
+docker compose up -d --build
+```
+
+Esse comando sobe:
+
+- tracker em `localhost:5000`
+- peer1 em `localhost:6001`
+- peer2 em `localhost:6002`
+- peer3 em `localhost:6003`
+- Prometheus em `localhost:9090`
+- Grafana em `localhost:3000`
+- Node Exporter em `localhost:9100`
+
+Para acompanhar os logs:
+
+```bash
+docker compose logs -f
+```
+
+Para parar tudo:
+
+```bash
+docker compose down
+```
+
+## 4. Usando a CLI em Docker
+
+Depois de subir os containers, abra um terminal interativo em um peer:
+
+```bash
+docker exec -it p2p_peer1 python peer.py
+```
+
+Tambem e possivel usar:
+
+```bash
+docker exec -it p2p_peer2 python peer.py
+docker exec -it p2p_peer3 python peer.py
+```
+
+O menu principal apresenta as opcoes:
+
+```text
+1. Publicar arquivo
+2. Buscar arquivos
+3. Baixar arquivo
+4. Listar arquivos locais
+5. Listar todos os arquivos da rede
+6. Listar peers ativos
+7. Status do sistema
+0. Sair
+```
+
+### Publicar Arquivo Pela CLI
+
+1. Acesse um peer:
+
+```bash
+docker exec -it p2p_peer1 python peer.py
+```
+
+2. Escolha a opcao `1`.
+3. Informe o caminho do arquivo dentro do container.
+
+Exemplo:
+
+```text
+/app/shared_files/exemplo.txt
+```
+
+Ao publicar, o peer calcula o hash SHA-256, registra o arquivo no tracker e tenta replicar o arquivo para outros peers ativos.
+
+### Buscar Arquivos Pela CLI
+
+1. Escolha a opcao `2`.
+2. Digite o nome ou parte do nome do arquivo.
+3. A CLI mostra os arquivos encontrados, hash e quantidade de replicas.
+
+### Baixar Arquivo Pela CLI
+
+1. Escolha a opcao `3`.
+2. Digite o nome exato do arquivo.
+3. O peer consulta o tracker, escolhe um peer fonte e baixa o arquivo diretamente dele.
+4. Depois do download, o arquivo e registrado localmente e publicado no tracker.
+
+## 5. Execucao Local com GUI
+
+A GUI nao deve ser executada dentro dos containers Docker. Ela usa Tkinter e deve rodar localmente no sistema operacional.
+
+### Windows com PowerShell
+
+Na raiz do projeto:
+
 ```powershell
 .\run_gui.ps1
 ```
 
-2. O script irá:
-   - Verificar se o Python está instalado
-   - Perguntar se deseja iniciar o tracker
-   - Solicitar configurações (host, porta)
-   - Iniciar a interface gráfica
+O script:
 
-### Opção 2: Manual
+- verifica se o Python esta instalado;
+- pergunta se deseja iniciar o tracker;
+- solicita host e porta do tracker;
+- solicita porta do peer, ou usa porta automatica;
+- inicia `peer/peer_gui.py`.
 
-1. **Iniciar o Tracker** (em um terminal separado):
+### Linux ou Execucao Manual
+
+Terminal 1, iniciar o tracker:
+
 ```bash
 cd tracker
-python tracker.py
+python3 tracker.py
 ```
 
-2. **Iniciar o Peer com GUI** (em outro terminal):
+Terminal 2, iniciar um peer com GUI:
+
 ```bash
+cd peer
+python3 peer_gui.py
+```
+
+Por padrao, a GUI tenta conectar no tracker em `localhost:5000` e escolhe uma porta livre para o peer.
+
+## 6. Configuracao por Variaveis de Ambiente
+
+Voce pode configurar tracker, porta e ID do peer antes de iniciar a GUI.
+
+Linux:
+
+```bash
+export TRACKER_HOST="localhost"
+export TRACKER_PORT="5000"
+export PEER_PORT="6001"
+export PEER_ID="peer_gui_1"
+cd peer
+python3 peer_gui.py
+```
+
+Windows PowerShell:
+
+```powershell
+$env:TRACKER_HOST = "localhost"
+$env:TRACKER_PORT = "5000"
+$env:PEER_PORT = "6001"
+$env:PEER_ID = "peer_gui_1"
 cd peer
 python peer_gui.py
 ```
 
-### Opção 3: Docker (Interface CLI)
+Se `PEER_PORT=0` ou nao for definido, a aplicacao escolhe uma porta livre automaticamente.
 
-O Docker atualmente suporta apenas a interface CLI. Para usar a GUI, execute localmente.
+## 7. Usando a Interface Grafica
+
+Ao abrir a GUI, o topo da janela mostra:
+
+- ID do peer;
+- IP e porta do peer;
+- status de conexao com o tracker.
+
+A interface possui cinco abas.
+
+### Aba Publicar Arquivo
+
+Use essa aba para colocar um arquivo na rede.
+
+1. Clique em **Selecionar Arquivo**.
+2. Escolha um arquivo do computador.
+3. Clique em **Publicar na Rede**.
+4. Aguarde a mensagem de sucesso.
+
+O arquivo e copiado para o diretorio local do peer, registrado no tracker e usado como fonte para replicacao.
+
+### Aba Buscar Arquivos
+
+Use essa aba para encontrar e baixar arquivos publicados.
+
+Para buscar por nome:
+
+1. Digite um termo no campo de busca.
+2. Clique em **Buscar** ou pressione Enter.
+3. Veja os resultados na tabela.
+
+Para listar tudo:
+
+1. Clique em **Listar Todos**.
+2. A tabela mostra todos os arquivos conhecidos pelo tracker.
+
+Para baixar:
+
+1. Selecione um item da tabela.
+2. Clique em **Baixar Arquivo Selecionado**.
+3. Aguarde a confirmacao.
+
+O download e feito diretamente de outro peer. O tracker apenas informa quais peers possuem o arquivo.
+
+### Aba Arquivos Locais
+
+Mostra os arquivos armazenados pelo peer atual.
+
+Campos exibidos:
+
+- nome do arquivo;
+- tamanho;
+- hash.
+
+Use **Atualizar Lista** para recarregar a tabela.
+
+Os arquivos ficam em um diretorio com o formato:
+
+```text
+peer/files_<peer_id>/
+```
+
+### Aba Peers Ativos
+
+Mostra os peers registrados no tracker.
+
+Campos exibidos:
+
+- ID do peer;
+- IP;
+- porta;
+- quantidade de arquivos, quando informada.
+
+Use **Atualizar Lista** para consultar novamente o tracker.
+
+### Aba Logs
+
+Mostra eventos da GUI, como:
+
+- arquivo selecionado;
+- publicacao iniciada;
+- busca realizada;
+- download iniciado;
+- atualizacoes de peers;
+- erros retornados pela aplicacao.
+
+Use **Limpar Logs** para limpar a tela de logs.
+
+## 8. Fluxo Recomendado para Demonstracao
+
+1. Suba a stack:
 
 ```bash
-docker-compose up --build
+docker compose up -d --build
+```
+
+2. Configure o Grafana:
+
+```bash
+./setup_grafana.sh
+```
+
+3. Abra o Grafana em:
+
+```text
+http://localhost:3000
+```
+
+Credenciais padrao:
+
+```text
+usuario: admin
+senha: admin
+```
+
+4. Abra um peer pela CLI:
+
+```bash
 docker exec -it p2p_peer1 python peer.py
 ```
 
-## 🎯 Funcionalidades da Interface Gráfica
-
-### 📤 Aba "Publicar Arquivo"
-- **Selecionar Arquivo**: Abre um diálogo para escolher o arquivo
-- **Publicar na Rede**: Publica o arquivo selecionado no sistema P2P
-- Após publicar, o arquivo fica disponível para outros peers
-
-### 🔍 Aba "Buscar Arquivos"
-- **Campo de Busca**: Digite o nome ou parte do nome do arquivo
-- **Botão Buscar**: Realiza a busca na rede
-- **Listar Todos**: Mostra todos os arquivos disponíveis na rede
-- **Tabela de Resultados**: Exibe:
-  - Nome do arquivo
-  - Número de réplicas (peers que têm o arquivo)
-  - Hash do arquivo (identificador único)
-- **Baixar Arquivo Selecionado**: Selecione um arquivo na tabela e clique para baixar
-
-### 💾 Aba "Arquivos Locais"
-- Mostra todos os arquivos que você possui localmente
-- Informações exibidas:
-  - Nome do arquivo
-  - Tamanho (formatado em B, KB, MB, GB)
-  - Hash do arquivo
-- **Botão Atualizar**: Atualiza a lista de arquivos
-
-### 🌐 Aba "Peers Ativos"
-- Lista todos os peers conectados à rede
-- Informações exibidas:
-  - Peer ID (identificador único)
-  - Endereço IP
-  - Porta de conexão
-  - Número de arquivos compartilhados
-- **Botão Atualizar**: Atualiza a lista de peers
-
-### 📋 Aba "Logs"
-- Mostra logs em tempo real das operações
-- Registra:
-  - Publicações de arquivos
-  - Downloads
-  - Buscas realizadas
-  - Conexões e desconexões
-  - Erros e avisos
-- **Botão Limpar Logs**: Remove todos os logs da tela
-
-### ℹ️ Barra de Status
-- **Status da Conexão**: Mostra se está conectado ao tracker
-- **Estatísticas**: Número de arquivos locais e peers ativos
-
-## 💡 Dicas de Uso
-
-### Como Compartilhar um Arquivo
-1. Vá para a aba "📤 Publicar Arquivo"
-2. Clique em "Selecionar Arquivo"
-3. Escolha o arquivo desejado
-4. Clique em "Publicar na Rede"
-5. Aguarde a confirmação de sucesso
-
-### Como Baixar um Arquivo
-1. Vá para a aba "🔍 Buscar Arquivos"
-2. Digite o nome do arquivo no campo de busca OU clique em "Listar Todos"
-3. Selecione o arquivo desejado na tabela
-4. Clique em "⬇ Baixar Arquivo Selecionado"
-5. O arquivo será baixado automaticamente
-
-### Monitorando o Sistema
-- Use a aba "📋 Logs" para acompanhar todas as atividades
-- Verifique a aba "🌐 Peers Ativos" para ver quem está online
-- A aba "💾 Arquivos Locais" mostra seus arquivos disponíveis
-
-## 🔧 Solução de Problemas
-
-### "Não foi possível conectar ao tracker"
-- Certifique-se de que o tracker está executando
-- Verifique o host e porta configurados
-- Tente: `python tracker/tracker.py` em outro terminal
-
-### "Erro ao publicar arquivo"
-- Verifique se o arquivo existe
-- Certifique-se de que tem permissões de leitura
-- Verifique os logs para mais detalhes
-
-### "Erro ao baixar arquivo"
-- Verifique se há peers ativos com o arquivo
-- Certifique-se de ter espaço em disco
-- Tente buscar o arquivo novamente
-
-### Interface não abre
-- Verifique se tkinter está instalado:
-  ```bash
-  python -c "import tkinter; print('OK')"
-  ```
-- No Windows, tkinter geralmente vem com Python
-- No Linux, instale: `sudo apt-get install python3-tk`
-
-## ⚙️ Configurações Avançadas
-
-### Variáveis de Ambiente
-
-Você pode configurar através de variáveis de ambiente:
-
-```powershell
-# Windows PowerShell
-$env:TRACKER_HOST = "192.168.1.100"
-$env:TRACKER_PORT = "5000"
-$env:PEER_PORT = "6001"
-cd peer
-python peer_gui.py
-```
+5. Publique um arquivo pelo `p2p_peer1`.
+6. Acesse outro peer:
 
 ```bash
-# Linux/Mac
-export TRACKER_HOST="192.168.1.100"
-export TRACKER_PORT="5000"
-export PEER_PORT="6001"
+docker exec -it p2p_peer2 python peer.py
+```
+
+7. Busque e baixe o arquivo pelo `p2p_peer2`.
+8. No Grafana, abra o dashboard **Controle da Rede P2P** e acompanhe a metrica `p2p_active_peers`.
+9. Para simular queda de peer:
+
+```bash
+docker stop p2p_peer3
+```
+
+10. Aguarde o timeout de heartbeat do tracker e observe a queda no painel.
+
+## 9. Observabilidade
+
+Prometheus coleta metricas em:
+
+- `node_exporter`: consumo da VM, CPU, memoria, disco e rede;
+- `tracker_app`: metricas expostas pelo tracker na porta `8000`.
+
+Endpoints principais:
+
+```text
+Prometheus: http://localhost:9090
+Grafana:    http://localhost:3000
+Tracker:    http://localhost:5000
+Metricas:   http://localhost:8000/metrics
+```
+
+A metrica customizada do tracker e:
+
+```text
+p2p_active_peers
+```
+
+Ela representa a quantidade atual de peers ativos registrados no tracker.
+
+Para consultar no Prometheus:
+
+1. Acesse `http://localhost:9090`.
+2. Pesquise por `p2p_active_peers`.
+3. Clique em **Execute**.
+
+## 10. Solucao de Problemas
+
+### A GUI nao conecta no tracker
+
+Verifique se o tracker esta rodando:
+
+```bash
+python3 tracker/tracker.py
+```
+
+Ou, se estiver usando Docker:
+
+```bash
+docker compose ps
+docker compose logs tracker
+```
+
+Confirme tambem se `TRACKER_HOST` e `TRACKER_PORT` estao corretos.
+
+### Erro de porta em uso
+
+Use outra porta para o peer:
+
+```bash
+export PEER_PORT="6010"
 cd peer
-python peer_gui.py
+python3 peer_gui.py
 ```
 
-### Múltiplos Peers
+Ou deixe automatico:
 
-Para executar múltiplos peers na mesma máquina:
-
-1. Abra vários terminais
-2. Em cada um, configure uma porta diferente:
-```powershell
-# Terminal 1
-$env:PEER_PORT = "6001"
-cd peer; python peer_gui.py
-
-# Terminal 2 (novo)
-$env:PEER_PORT = "6002"
-cd peer; python peer_gui.py
-
-# Terminal 3 (novo)
-$env:PEER_PORT = "6003"
-cd peer; python peer_gui.py
+```bash
+export PEER_PORT="0"
 ```
 
-## 📊 Comparação: CLI vs GUI
+### Interface grafica nao abre
 
-| Recurso | CLI | GUI |
-|---------|-----|-----|
-| Publicar arquivo | ✓ | ✓ |
-| Buscar arquivos | ✓ | ✓ |
-| Baixar arquivos | ✓ | ✓ |
-| Listar arquivos locais | ✓ | ✓ |
-| Listar peers | ✓ | ✓ |
-| Logs em tempo real | - | ✓ |
-| Interface visual | - | ✓ |
-| Seleção de arquivo gráfica | - | ✓ |
-| Atualização automática | - | ✓ |
-| Uso em Docker | ✓ | - |
+Teste o Tkinter:
 
-## 🎨 Atalhos de Teclado
+```bash
+python3 -c "import tkinter; print('OK')"
+```
 
-- **Enter** no campo de busca: Executa a busca
-- **Seleção na tabela** + **Enter**: (funcionalidade futura)
+Se falhar no Linux, instale:
 
-## 📝 Notas
+```bash
+sudo apt-get install python3-tk
+```
 
-- A interface gráfica **não** funciona dentro de containers Docker (sem suporte X11)
-- Para usar em Docker, utilize a interface CLI: `python peer.py`
-- A GUI atualiza automaticamente algumas informações a cada 10 segundos
-- Todos os arquivos são armazenados em `files_<peer_id>/`
-- A replicação automática garante mínimo de 2 cópias de cada arquivo
+### Arquivo nao aparece na busca
 
-## 🆘 Suporte
+Confira:
 
-Para mais informações:
-- Veja [README.md](README.md) para arquitetura do sistema
-- Veja [QUICKSTART.md](QUICKSTART.md) para início rápido
-- Veja [CONFIGURACAO.md](CONFIGURACAO.md) para configurações detalhadas
+- se o arquivo foi publicado com sucesso;
+- se o peer que publicou continua ativo;
+- se o termo de busca corresponde ao nome do arquivo;
+- se o tracker esta recebendo heartbeats.
+
+### Download falha
+
+Possiveis causas:
+
+- nenhum peer ativo possui o arquivo;
+- o peer fonte foi desligado;
+- a porta do peer fonte nao esta acessivel;
+- o arquivo local foi removido manualmente;
+- houve falha de hash apos a transferencia.
+
+### Grafana nao mostra dados
+
+Verifique se os containers estao ativos:
+
+```bash
+docker compose ps
+```
+
+Verifique os targets do Prometheus:
+
+```text
+http://localhost:9090/targets
+```
+
+Os jobs `node_exporter` e `tracker_app` devem aparecer como `UP`.
+
+Se o dashboard ainda nao existir, rode:
+
+```bash
+./setup_grafana.sh
+```
+
+## 11. Comandos Uteis
+
+Subir tudo:
+
+```bash
+docker compose up -d --build
+```
+
+Ver logs:
+
+```bash
+docker compose logs -f
+```
+
+Entrar no peer 1:
+
+```bash
+docker exec -it p2p_peer1 python peer.py
+```
+
+Parar um peer:
+
+```bash
+docker stop p2p_peer1
+```
+
+Subir novamente um peer:
+
+```bash
+docker start p2p_peer1
+```
+
+Parar toda a stack:
+
+```bash
+docker compose down
+```
+
+Recriar tudo:
+
+```bash
+docker compose down
+docker compose up -d --build
+./setup_grafana.sh
+```
+
+## 12. Observacoes
+
+- O tracker nao armazena arquivos, apenas metadados.
+- As transferencias de arquivo acontecem diretamente entre peers.
+- O heartbeat mantem a lista de peers ativos atualizada.
+- A replicacao tenta manter pelo menos duas copias de cada arquivo quando houver peers suficientes.
+- A GUI e recomendada para uso local; em Docker, use a CLI.
+- O Grafana usa `admin/admin` conforme configurado no `docker-compose.yml`.

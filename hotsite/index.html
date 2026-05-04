@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TP2 - Redes P2P Híbrido</title>
+  <script>
+    window.tailwind = {
+      config: {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "Roboto", "system-ui", "sans-serif"],
+              mono: ["Fira Code", "ui-monospace", "SFMono-Regular", "monospace"]
+            },
+            colors: {
+              cyber: {
+                bg: "#0f172a",
+                panel: "#111827",
+                panel2: "#1e293b",
+                border: "#334155",
+                green: "#10b981",
+                blue: "#3b82f6",
+                cyan: "#22d3ee"
+              }
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 18% 10%, rgba(59, 130, 246, 0.18), transparent 32rem),
+        radial-gradient(circle at 82% 18%, rgba(16, 185, 129, 0.14), transparent 30rem),
+        linear-gradient(180deg, #0f172a 0%, #111827 54%, #0b1120 100%);
+      font-family: "Inter", "Roboto", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, #000 0%, transparent 78%);
+    }
+
+    .glass {
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(51, 65, 85, 0.92);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(14px);
+    }
+
+    .terminal-scanline {
+      background-image: linear-gradient(rgba(255, 255, 255, 0.025) 50%, transparent 50%);
+      background-size: 100% 6px;
+    }
+
+    .font-mono,
+    pre,
+    code {
+      font-family: "Fira Code", ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .cursor::after {
+      content: "_";
+      color: #10b981;
+      animation: blink 1s steps(2, start) infinite;
+    }
+
+    .node-pulse {
+      animation: pulseNode 1.9s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 45% {
+        opacity: 1;
+      }
+      46%, 100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes pulseNode {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.34);
+      }
+      50% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans text-slate-100 antialiased">
+  <main class="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+    <section class="glass overflow-hidden rounded-lg">
+      <div class="grid min-h-[430px] gap-8 p-6 sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:p-10">
+        <div class="flex flex-col justify-center">
+          <div class="mb-6 flex w-fit items-center gap-3 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+            <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 node-pulse"></span>
+            Tracker: ONLINE | Peers Ativos: <span id="activePeersCount">3</span>
+          </div>
+
+          <p class="mb-3 text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">Engenharia de Software / Redes</p>
+          <h1 class="max-w-4xl text-4xl font-extrabold leading-tight tracking-normal text-white sm:text-5xl lg:text-6xl">
+            TP2 - Redes P2P Híbrido
+          </h1>
+          <p class="mt-5 max-w-3xl text-lg font-medium leading-8 text-slate-300 sm:text-xl">
+            Temática 5: Backup Acadêmico Seguro &amp; Replicação Voluntária
+          </p>
+          <p class="mt-4 max-w-3xl text-sm leading-6 text-slate-400">
+            Modelo híbrido com Tracker central para metadados e transferência real de arquivos entre peers via socket TCP. O Tracker não armazena os arquivos, apenas nome, hash e lista de peers.
+          </p>
+
+          <div class="mt-8 grid gap-3 sm:grid-cols-2">
+            <a
+              href="http://localhost:3000"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex min-h-14 items-center justify-center rounded-lg border border-emerald-400/40 bg-emerald-500 px-5 text-center text-base font-bold text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            >
+              📊 Abrir Grafana (Monitoramento)
+            </a>
+            <a
+              href="http://localhost:9090"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex min-h-14 items-center justify-center rounded-lg border border-blue-400/40 bg-blue-500 px-5 text-center text-base font-bold text-white shadow-[0_0_28px_rgba(59,130,246,0.28)] transition hover:-translate-y-0.5 hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              ⚙️ Abrir Prometheus
+            </a>
+          </div>
+        </div>
+
+        <div class="relative flex items-center justify-center">
+          <div class="absolute h-72 w-72 rounded-full border border-blue-400/20"></div>
+          <div class="absolute h-52 w-52 rounded-full border border-emerald-400/20"></div>
+          <div class="relative grid h-80 w-full max-w-md place-items-center">
+            <div class="absolute left-1/2 top-1/2 h-px w-[74%] -translate-x-1/2 bg-gradient-to-r from-transparent via-blue-400/70 to-transparent"></div>
+            <div class="absolute left-[16%] top-[26%] h-px w-[68%] rotate-[32deg] bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"></div>
+            <div class="absolute left-[18%] bottom-[28%] h-px w-[66%] -rotate-[30deg] bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent"></div>
+
+            <div class="absolute left-6 top-12 rounded-lg border border-slate-600 bg-slate-900/90 px-4 py-3 shadow-xl">
+              <p class="font-mono text-sm text-emerald-300">peer-01</p>
+              <p class="text-xs text-slate-400">réplica.zip</p>
+            </div>
+            <div class="absolute right-6 top-14 rounded-lg border border-slate-600 bg-slate-900/90 px-4 py-3 shadow-xl">
+              <p class="font-mono text-sm text-blue-300">peer-02</p>
+              <p class="text-xs text-slate-400">réplica.zip</p>
+            </div>
+            <div class="absolute bottom-12 left-1/2 -translate-x-1/2 rounded-lg border border-slate-600 bg-slate-900/90 px-4 py-3 shadow-xl">
+              <p class="font-mono text-sm text-cyan-300">peer-03</p>
+              <p class="text-xs text-slate-400">standby</p>
+            </div>
+            <div class="z-10 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-6 py-5 text-center shadow-[0_0_36px_rgba(16,185,129,0.22)]">
+              <p class="font-mono text-lg font-semibold text-emerald-300">TRACKER</p>
+              <p class="mt-1 text-xs uppercase tracking-[0.22em] text-slate-400">metadata index</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-3">
+      <article class="glass rounded-lg p-6">
+        <div class="mb-5 flex h-12 w-12 items-center justify-center rounded-lg border border-emerald-400/40 bg-emerald-500/10 font-mono text-xl font-bold text-emerald-300">1</div>
+        <h2 class="text-xl font-bold text-white">Registro</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-300">
+          Peer envia metadados ao Tracker, incluindo hash, nome do arquivo, porta TCP e identificador do nó participante.
+        </p>
+        <div class="mt-5 rounded-lg border border-slate-700 bg-slate-950/70 p-3 font-mono text-xs text-slate-300">
+          hash + filename -> tracker
+        </div>
+      </article>
+
+      <article class="glass rounded-lg p-6">
+        <div class="mb-5 flex h-12 w-12 items-center justify-center rounded-lg border border-blue-400/40 bg-blue-500/10 font-mono text-xl font-bold text-blue-300">2</div>
+        <h2 class="text-xl font-bold text-white">Replicação</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-300">
+          Tracker devolve peers disponíveis. O peer origem empurra o arquivo <span class="font-mono text-emerald-300">.zip</span> via upload TCP para 2 peers.
+        </p>
+        <div class="mt-5 rounded-lg border border-slate-700 bg-slate-950/70 p-3 font-mono text-xs text-slate-300">
+          origin -> peer-01 + peer-02
+        </div>
+      </article>
+
+      <article class="glass rounded-lg p-6">
+        <div class="mb-5 flex h-12 w-12 items-center justify-center rounded-lg border border-cyan-400/40 bg-cyan-500/10 font-mono text-xl font-bold text-cyan-300">3</div>
+        <h2 class="text-xl font-bold text-white">Heartbeat</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-300">
+          Tracker remove peers inativos. Se as réplicas ficarem abaixo de 2, a rede dispara uma nova replicação voluntária.
+        </p>
+        <div class="mt-5 rounded-lg border border-slate-700 bg-slate-950/70 p-3 font-mono text-xs text-slate-300">
+          réplicas &lt; 2 -> re-replicate
+        </div>
+      </article>
+    </section>
+
+    <section class="glass rounded-lg p-4 sm:p-6 lg:p-8">
+      <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.22em] text-blue-300">Ações exigidas no TP2</p>
+          <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Fluxo Operacional do Sistema</h2>
+        </div>
+        <p class="max-w-2xl text-sm leading-6 text-slate-400">
+          Estas são as ações que a implementação precisa demonstrar: descoberta pelo Tracker, download peer-to-peer, replicação mínima e recuperação após falha.
+        </p>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">01 / REGISTER</div>
+          <h3 class="font-bold text-white">Registrar Peer</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Peer informa IP, porta TCP e lista inicial de recursos ao Tracker.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">02 / LIST</div>
+          <h3 class="font-bold text-white">Listar Recursos</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Cliente consulta o Tracker para ver os arquivos acadêmicos disponíveis na rede.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">03 / LOOKUP</div>
+          <h3 class="font-bold text-white">Localizar Arquivo</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Tracker retorna hash e peers que possuem o recurso solicitado pelo nome.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">04 / DOWNLOAD</div>
+          <h3 class="font-bold text-white">Baixar via TCP</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Peer downloader abre conexão TCP direta com o peer uploader e recebe o arquivo .zip.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">05 / REPLICATE</div>
+          <h3 class="font-bold text-white">Replicar em 2 Peers</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Ao enviar um .zip, o peer origem escolhe 2 peers ativos para guardar cópias voluntárias.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">06 / HEARTBEAT</div>
+          <h3 class="font-bold text-white">Detectar Falhas</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Peers enviam sinais periódicos para confirmar disponibilidade ao Tracker.</p>
+        </article>
+
+        <article class="rounded-lg border border-slate-700 bg-slate-950/60 p-4 md:col-span-2">
+          <div class="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-red-300">07 / RE-REPLICATE</div>
+          <h3 class="font-bold text-white">Re-replicar se Réplicas &lt; 2</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Quando um peer cai, o Tracker remove seus metadados. Se um arquivo ficar com menos de 2 réplicas, outro peer ativo recebe uma nova cópia.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="glass rounded-lg p-4 sm:p-6 lg:p-8">
+      <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-300">Backend real integrado</p>
+          <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Painel Operacional P2P</h2>
+        </div>
+        <p class="max-w-2xl text-sm leading-6 text-slate-400">
+          Executa as ações reais da CLI pelo gateway HTTP: publicar .zip, buscar, baixar, listar arquivos locais, listar arquivos da rede, listar peers e consultar status.
+        </p>
+      </div>
+
+      <div class="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+        <div class="grid gap-4">
+          <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h3 class="font-bold text-white">Upload Acadêmico</h3>
+                <p class="mt-1 text-sm text-slate-400">Escolha um arquivo .zip para gerar hash e replicar.</p>
+              </div>
+              <span class="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 font-mono text-xs text-emerald-300">UPLOAD TCP</span>
+            </div>
+
+            <label class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-600 bg-slate-900/70 px-4 py-6 text-center transition hover:border-emerald-400/70 hover:bg-emerald-500/5">
+              <span class="font-mono text-sm text-slate-200" id="selectedFileLabel">Selecionar arquivo .zip</span>
+              <span class="mt-1 text-xs text-slate-500">Trabalhos, TCCs ou artigos compactados</span>
+              <input id="uploadInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" class="sr-only" />
+            </label>
+
+            <button id="uploadButton" class="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-emerald-400/40 bg-emerald-500 px-4 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+              Publicar no Tracker e Replicar
+            </button>
+
+            <div id="uploadMessage" class="mt-3 min-h-6 font-mono text-xs text-slate-400"></div>
+          </div>
+
+          <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+            <h3 class="font-bold text-white">Ações da CLI</h3>
+            <p class="mt-1 text-sm text-slate-400">Atalhos integrados ao peer web-ui, usando o backend Python real.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <button id="heartbeatButton" class="rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-left font-mono text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20">
+                STATUS
+              </button>
+              <button id="simulateFailureButton" class="rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-3 text-left font-mono text-sm font-semibold text-red-200 transition hover:bg-red-500/20">
+                LIST_LOCAL
+              </button>
+              <button id="resetDemoButton" class="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-left font-mono text-sm font-semibold text-slate-200 transition hover:border-slate-400">
+                LIST_PEERS
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <div id="trackerFilesCount" class="font-mono text-2xl font-bold text-blue-300">0</div>
+                <div class="mt-1 text-xs text-slate-500">arquivos</div>
+              </div>
+              <div class="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <div id="replicaHealth" class="font-mono text-2xl font-bold text-emerald-300">OK</div>
+                <div class="mt-1 text-xs text-slate-500">réplicas</div>
+              </div>
+              <div class="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <div class="font-mono text-2xl font-bold text-cyan-300">2+</div>
+                <div class="mt-1 text-xs text-slate-500">mínimo</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid gap-4">
+          <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+            <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 class="font-bold text-white">Tracker: Metadados Indexados</h3>
+                <p class="mt-1 text-sm text-slate-400">Nome, hash e peers que possuem cada arquivo.</p>
+              </div>
+              <div class="flex min-w-0 gap-2">
+                <input id="lookupInput" type="search" placeholder="LOOKUP por nome..." class="min-h-10 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400" />
+                <button id="lookupButton" class="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 font-mono text-sm font-semibold text-blue-200 transition hover:bg-blue-500/30">LOOKUP</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[680px] text-left text-sm">
+                <thead class="border-b border-slate-700 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <tr>
+                    <th class="px-3 py-3">Arquivo</th>
+                    <th class="px-3 py-3">Hash</th>
+                    <th class="px-3 py-3">Réplicas</th>
+                    <th class="px-3 py-3">Peers</th>
+                    <th class="px-3 py-3">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="fileRows" class="divide-y divide-slate-800 text-slate-300">
+                  <tr>
+                    <td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo publicado ainda.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+              <h3 class="font-bold text-white">Peers da Rede</h3>
+              <div id="peerCards" class="mt-4 grid gap-3"></div>
+            </div>
+
+            <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+              <h3 class="font-bold text-white">Log do Gateway</h3>
+              <div id="operationLog" class="mt-4 h-64 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-6 text-slate-300"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass rounded-lg p-4 sm:p-6 lg:p-8">
+      <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-300">Camada TCP</p>
+          <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Terminal Interativo de Protocolo</h2>
+        </div>
+        <p class="max-w-2xl text-sm leading-6 text-slate-400">
+          Clique em um comando para simular a mensagem JSON enviada via TCP. O comando textual segue o enunciado: LIST, LOOKUP &lt;nome&gt; e DOWNLOAD &lt;hash&gt; &lt;peer&gt;.
+        </p>
+      </div>
+
+      <div class="grid gap-4 lg:grid-cols-[180px_1fr]">
+        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <button data-command="LIST" class="protocol-btn rounded-lg border border-slate-600 bg-slate-900 px-4 py-4 text-left font-mono text-sm font-semibold text-slate-100 transition hover:border-emerald-400 hover:bg-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            LIST
+          </button>
+          <button data-command="LOOKUP" class="protocol-btn rounded-lg border border-slate-600 bg-slate-900 px-4 py-4 text-left font-mono text-sm font-semibold text-slate-100 transition hover:border-blue-400 hover:bg-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            LOOKUP
+          </button>
+          <button data-command="DOWNLOAD" class="protocol-btn rounded-lg border border-slate-600 bg-slate-900 px-4 py-4 text-left font-mono text-sm font-semibold text-slate-100 transition hover:border-cyan-400 hover:bg-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400">
+            DOWNLOAD
+          </button>
+        </div>
+
+        <div class="overflow-hidden rounded-lg border border-slate-700 bg-slate-950 shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3">
+            <div class="flex gap-2">
+              <span class="h-3 w-3 rounded-full bg-red-500"></span>
+              <span class="h-3 w-3 rounded-full bg-yellow-400"></span>
+              <span class="h-3 w-3 rounded-full bg-emerald-400"></span>
+            </div>
+            <span class="font-mono text-xs text-slate-400">p2p-protocol@tcp</span>
+          </div>
+
+          <div class="terminal-scanline min-h-[340px] p-4 sm:p-6">
+            <div class="mb-4 font-mono text-sm text-emerald-300">
+              <span class="text-blue-300">peer-client</span>:<span class="text-cyan-300">~</span>$ send --json
+            </div>
+            <pre id="terminalOutput" class="cursor whitespace-pre-wrap break-words font-mono text-sm leading-7 text-slate-100 sm:text-base"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="flex flex-col justify-between gap-3 border-t border-slate-700/80 pt-6 text-sm text-slate-400 sm:flex-row">
+      <span>TP2 Redes - Sistema P2P Híbrido com Tracker</span>
+      <span>Grafana :3000 | Prometheus :9090 | Gateway :8082 | Hotsite :8081</span>
+    </footer>
+  </main>
+
+  <script type="text/plain" id="legacy-simulation-script">
+    const demoPeers = [
+      { id: "peer-01", ip: "192.168.1.10", port: 6001, status: "online", files: new Set() },
+      { id: "peer-02", ip: "192.168.1.11", port: 6002, status: "online", files: new Set() },
+      { id: "peer-03", ip: "192.168.1.12", port: 6003, status: "online", files: new Set() }
+    ];
+
+    const demoFiles = [];
+    const state = {
+      selectedFile: null,
+      lookupTerm: ""
+    };
+
+    const payloads = {
+      LIST: {
+        commandLine: "LIST",
+        target: "Cliente -> Tracker",
+        payload: {
+          command: "LIST"
+        }
+      },
+      LOOKUP: {
+        commandLine: "LOOKUP TCC_final.zip",
+        target: "Cliente -> Tracker",
+        payload: {
+          command: "LOOKUP",
+          filename: "TCC_final.zip"
+        }
+      },
+      DOWNLOAD: {
+        commandLine: "DOWNLOAD a1b2c3d4e5f67890 192.168.1.10:6001",
+        target: "Cliente -> Peer",
+        payload: {
+          command: "DOWNLOAD",
+          hash: "a1b2c3d4e5f67890",
+          peer: "192.168.1.10:6001"
+        }
+      }
+    };
+
+    const terminalOutput = document.getElementById("terminalOutput");
+    const buttons = document.querySelectorAll(".protocol-btn");
+    const uploadInput = document.getElementById("uploadInput");
+    const uploadButton = document.getElementById("uploadButton");
+    const selectedFileLabel = document.getElementById("selectedFileLabel");
+    const uploadMessage = document.getElementById("uploadMessage");
+    const fileRows = document.getElementById("fileRows");
+    const peerCards = document.getElementById("peerCards");
+    const operationLog = document.getElementById("operationLog");
+    const lookupInput = document.getElementById("lookupInput");
+    const lookupButton = document.getElementById("lookupButton");
+    const heartbeatButton = document.getElementById("heartbeatButton");
+    const simulateFailureButton = document.getElementById("simulateFailureButton");
+    const resetDemoButton = document.getElementById("resetDemoButton");
+    const activePeersCount = document.getElementById("activePeersCount");
+    const trackerFilesCount = document.getElementById("trackerFilesCount");
+    const replicaHealth = document.getElementById("replicaHealth");
+    let typingTimer = null;
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + " " + units[index];
+    }
+
+    function shortHash(hash) {
+      return hash.slice(0, 12) + "...";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getOnlinePeers() {
+      return demoPeers.filter((peer) => peer.status === "online");
+    }
+
+    function getActiveHolders(file) {
+      return file.peers.filter((peerId) => {
+        const peer = demoPeers.find((candidate) => candidate.id === peerId);
+        return peer && peer.status === "online";
+      });
+    }
+
+    function logOperation(message, level = "info") {
+      const colors = {
+        info: "text-slate-300",
+        success: "text-emerald-300",
+        warn: "text-yellow-300",
+        error: "text-red-300",
+        tcp: "text-blue-300"
+      };
+      const line = document.createElement("div");
+      const time = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+      line.className = colors[level] || colors.info;
+      line.textContent = "[" + time + "] " + message;
+      operationLog.prepend(line);
+    }
+
+    async function calculateFileHash(file) {
+      if (window.crypto && window.crypto.subtle) {
+        const buffer = await file.arrayBuffer();
+        const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+        return Array.from(new Uint8Array(digest))
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
+      const fallback = file.name + ":" + file.size + ":" + file.lastModified;
+      let hash = 0;
+      for (let i = 0; i < fallback.length; i += 1) {
+        hash = ((hash << 5) - hash + fallback.charCodeAt(i)) >>> 0;
+      }
+      return hash.toString(16).padStart(64, "0");
+    }
+
+    function renderPeers() {
+      peerCards.innerHTML = "";
+
+      demoPeers.forEach((peer) => {
+        const isOnline = peer.status === "online";
+        const card = document.createElement("div");
+        card.className = "rounded-lg border p-3 " + (isOnline ? "border-emerald-400/30 bg-emerald-500/10" : "border-red-400/30 bg-red-500/10");
+        card.innerHTML = [
+          '<div class="flex items-center justify-between gap-3">',
+          '<div>',
+          '<div class="font-mono text-sm font-semibold ' + (isOnline ? "text-emerald-300" : "text-red-300") + '">' + escapeHtml(peer.id) + '</div>',
+          '<div class="mt-1 text-xs text-slate-400">' + escapeHtml(peer.ip + ":" + peer.port) + '</div>',
+          '</div>',
+          '<span class="rounded-full border px-2 py-1 font-mono text-[10px] uppercase ' + (isOnline ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300") + '">' + peer.status + '</span>',
+          '</div>',
+          '<div class="mt-3 text-xs text-slate-400">Arquivos: <span class="font-mono text-slate-200">' + peer.files.size + '</span></div>'
+        ].join("");
+        peerCards.appendChild(card);
+      });
+    }
+
+    function renderFiles() {
+      const filtered = demoFiles.filter((file) => file.filename.toLowerCase().includes(state.lookupTerm.toLowerCase()));
+      trackerFilesCount.textContent = demoFiles.length;
+
+      if (!filtered.length) {
+        fileRows.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo encontrado no Tracker.</td></tr>';
+      } else {
+        fileRows.innerHTML = filtered.map((file) => {
+          const holders = getActiveHolders(file);
+          const isSafe = holders.length >= 2;
+          const peerText = holders.length ? holders.join(", ") : "sem peer ativo";
+          return [
+            '<tr>',
+            '<td class="px-3 py-4"><div class="font-semibold text-white">' + escapeHtml(file.filename) + '</div><div class="mt-1 text-xs text-slate-500">' + escapeHtml(formatBytes(file.size)) + '</div></td>',
+            '<td class="px-3 py-4 font-mono text-xs text-blue-300">' + escapeHtml(shortHash(file.hash)) + '</td>',
+            '<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 font-mono text-xs ' + (isSafe ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300") + '">' + holders.length + '/2</span></td>',
+            '<td class="px-3 py-4 font-mono text-xs text-slate-300">' + escapeHtml(peerText) + '</td>',
+            '<td class="px-3 py-4"><button data-download="' + escapeHtml(file.hash) + '" class="download-btn rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-2 font-mono text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20">DOWNLOAD</button></td>',
+            '</tr>'
+          ].join("");
+        }).join("");
+      }
+
+      const allSafe = demoFiles.every((file) => getActiveHolders(file).length >= 2);
+      replicaHealth.textContent = allSafe ? "OK" : "ALERTA";
+      replicaHealth.className = "font-mono text-2xl font-bold " + (allSafe ? "text-emerald-300" : "text-red-300");
+
+      document.querySelectorAll(".download-btn").forEach((button) => {
+        button.addEventListener("click", () => simulateDownload(button.dataset.download));
+      });
+    }
+
+    function renderStats() {
+      activePeersCount.textContent = getOnlinePeers().length;
+      renderPeers();
+      renderFiles();
+    }
+
+    function chooseReplicaPeers(existingPeerIds = []) {
+      return getOnlinePeers()
+        .filter((peer) => !existingPeerIds.includes(peer.id))
+        .slice(0, 2);
+    }
+
+    async function publishAndReplicate() {
+      const file = state.selectedFile;
+      if (!file) {
+        uploadMessage.textContent = "Selecione um arquivo .zip antes de publicar.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-yellow-300";
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        uploadMessage.textContent = "Arquivo recusado: a temática exige envio de arquivos .zip.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-red-300";
+        return;
+      }
+
+      const replicaTargets = chooseReplicaPeers();
+      if (replicaTargets.length < 2) {
+        uploadMessage.textContent = "Não há 2 peers ativos para cumprir a replicação mínima.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-red-300";
+        return;
+      }
+
+      uploadButton.disabled = true;
+      uploadButton.textContent = "Calculando hash SHA-256...";
+      logOperation("UPLOAD recebido: " + file.name + " (" + formatBytes(file.size) + ")", "tcp");
+
+      const hash = await calculateFileHash(file);
+      const existingIndex = demoFiles.findIndex((item) => item.hash === hash);
+      const record = {
+        filename: file.name,
+        size: file.size,
+        hash,
+        peers: replicaTargets.map((peer) => peer.id),
+        createdAt: new Date()
+      };
+
+      if (existingIndex >= 0) {
+        demoFiles[existingIndex] = record;
+      } else {
+        demoFiles.push(record);
+      }
+
+      demoPeers.forEach((peer) => peer.files.delete(hash));
+      replicaTargets.forEach((peer) => peer.files.add(hash));
+
+      uploadButton.textContent = "Publicar no Tracker e Replicar";
+      uploadButton.disabled = false;
+      uploadMessage.textContent = "Publicado: " + shortHash(hash) + " | réplicas: " + record.peers.join(", ");
+      uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-emerald-300";
+
+      payloads.LOOKUP.payload.filename = file.name;
+      payloads.LOOKUP.commandLine = "LOOKUP " + file.name;
+      payloads.DOWNLOAD.payload.hash = hash;
+      payloads.DOWNLOAD.payload.peer = replicaTargets[0].ip + ":" + replicaTargets[0].port;
+      payloads.DOWNLOAD.commandLine = "DOWNLOAD " + shortHash(hash) + " " + payloads.DOWNLOAD.payload.peer;
+
+      logOperation("PUBLISH -> Tracker indexou nome, hash e lista de peers.", "success");
+      logOperation("REPLICATE -> " + file.name + " enviado para " + record.peers.join(" e ") + ".", "success");
+      renderStats();
+      typePayload("LOOKUP");
+    }
+
+    function simulateDownload(hash) {
+      const file = demoFiles.find((item) => item.hash === hash);
+      if (!file) return;
+
+      const holders = getActiveHolders(file);
+      if (!holders.length) {
+        logOperation("DOWNLOAD bloqueado: nenhum peer ativo possui " + file.filename + ".", "error");
+        return;
+      }
+
+      const peer = demoPeers.find((candidate) => candidate.id === holders[0]);
+      payloads.DOWNLOAD.payload.hash = file.hash;
+      payloads.DOWNLOAD.payload.peer = peer.ip + ":" + peer.port;
+      payloads.DOWNLOAD.commandLine = "DOWNLOAD " + shortHash(file.hash) + " " + peer.ip + ":" + peer.port;
+      typePayload("DOWNLOAD");
+      logOperation("DOWNLOAD -> cliente baixando " + file.filename + " de " + peer.id + " via TCP.", "tcp");
+      setTimeout(() => logOperation("DOWNLOAD concluído com validação de hash " + shortHash(file.hash) + ".", "success"), 900);
+    }
+
+    function simulateHeartbeat() {
+      getOnlinePeers().forEach((peer) => {
+        logOperation("HEARTBEAT <- " + peer.id + " ativo em " + peer.ip + ":" + peer.port + ".", "info");
+      });
+      renderStats();
+    }
+
+    function simulateFailure() {
+      const target = demoPeers.find((peer) => peer.status === "online" && peer.files.size > 0) || demoPeers.find((peer) => peer.status === "online");
+      if (!target) {
+        logOperation("Nenhum peer online para derrubar.", "warn");
+        return;
+      }
+
+      target.status = "offline";
+      logOperation("FALHA detectada: " + target.id + " parou de responder ao heartbeat.", "error");
+      logOperation("Tracker remove " + target.id + " da lista de peers ativos.", "warn");
+      renderStats();
+      setTimeout(checkAndRereplicate, 700);
+    }
+
+    function checkAndRereplicate() {
+      demoFiles.forEach((file) => {
+        const activeHolders = getActiveHolders(file);
+        if (activeHolders.length >= 2) return;
+
+        const candidates = getOnlinePeers().filter((peer) => !file.peers.includes(peer.id));
+        const needed = 2 - activeHolders.length;
+        const selected = candidates.slice(0, needed);
+
+        if (!selected.length) {
+          logOperation("RE-REPLICATE pendente: não há peer ativo livre para " + file.filename + ".", "error");
+          return;
+        }
+
+        selected.forEach((peer) => {
+          peer.files.add(file.hash);
+          if (!file.peers.includes(peer.id)) file.peers.push(peer.id);
+          logOperation("RE-REPLICATE -> nova cópia de " + file.filename + " criada em " + peer.id + ".", "success");
+        });
+      });
+
+      renderStats();
+    }
+
+    function resetDemo() {
+      demoFiles.splice(0, demoFiles.length);
+      demoPeers.forEach((peer) => {
+        peer.status = "online";
+        peer.files.clear();
+      });
+      state.selectedFile = null;
+      state.lookupTerm = "";
+      uploadInput.value = "";
+      lookupInput.value = "";
+      selectedFileLabel.textContent = "Selecionar arquivo .zip";
+      uploadMessage.textContent = "";
+      operationLog.innerHTML = "";
+      logOperation("Demo reiniciada. Tracker online com 3 peers ativos.", "success");
+      renderStats();
+      typePayload("LIST");
+    }
+
+    function setActiveButton(command) {
+      buttons.forEach((button) => {
+        const isActive = button.dataset.command === command;
+        button.classList.toggle("border-emerald-400", isActive);
+        button.classList.toggle("bg-emerald-500/10", isActive);
+        button.classList.toggle("text-emerald-200", isActive);
+      });
+    }
+
+    function typePayload(command) {
+      clearInterval(typingTimer);
+      setActiveButton(command);
+
+      const selected = payloads[command];
+      const json = JSON.stringify(selected.payload, null, 2);
+      const header = "> rota: " + selected.target + "\n> protocolo: " + selected.commandLine + "\n> payload JSON:\n";
+      const output = header + json;
+      let index = 0;
+
+      terminalOutput.textContent = "";
+      typingTimer = setInterval(() => {
+        terminalOutput.textContent += output.charAt(index);
+        index += 1;
+
+        if (index >= output.length) {
+          clearInterval(typingTimer);
+        }
+      }, 18);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        typePayload(button.dataset.command);
+      });
+    });
+
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files[0];
+      state.selectedFile = file || null;
+      selectedFileLabel.textContent = file ? file.name + " | " + formatBytes(file.size) : "Selecionar arquivo .zip";
+      uploadMessage.textContent = file && !file.name.toLowerCase().endsWith(".zip")
+        ? "Atenção: selecione um .zip para cumprir a temática."
+        : "";
+      uploadMessage.className = file && !file.name.toLowerCase().endsWith(".zip")
+        ? "mt-3 min-h-6 font-mono text-xs text-yellow-300"
+        : "mt-3 min-h-6 font-mono text-xs text-slate-400";
+    });
+
+    uploadButton.addEventListener("click", publishAndReplicate);
+
+    lookupButton.addEventListener("click", () => {
+      state.lookupTerm = lookupInput.value.trim();
+      payloads.LOOKUP.payload.filename = state.lookupTerm || "TCC_final.zip";
+      payloads.LOOKUP.commandLine = "LOOKUP " + (state.lookupTerm || "TCC_final.zip");
+      logOperation("LOOKUP -> buscando '" + (state.lookupTerm || "*") + "' no Tracker.", "tcp");
+      renderFiles();
+      typePayload("LOOKUP");
+    });
+
+    lookupInput.addEventListener("input", () => {
+      state.lookupTerm = lookupInput.value.trim();
+      renderFiles();
+    });
+
+    heartbeatButton.addEventListener("click", simulateHeartbeat);
+    simulateFailureButton.addEventListener("click", simulateFailure);
+    resetDemoButton.addEventListener("click", resetDemo);
+
+    window.addEventListener("DOMContentLoaded", () => {
+      renderStats();
+      logOperation("Tracker online. Peers registrados: peer-01, peer-02, peer-03.", "success");
+      typePayload("LIST");
+    });
+  </script>
+  <script>
+    const API_BASE = "http://localhost:8082/api";
+
+    const payloads = {
+      LIST: {
+        commandLine: "LIST",
+        target: "Cliente -> Tracker",
+        payload: { command: "LIST" }
+      },
+      LOOKUP: {
+        commandLine: "LOOKUP TCC_final.zip",
+        target: "Cliente -> Tracker",
+        payload: { command: "LOOKUP", filename: "TCC_final.zip" }
+      },
+      DOWNLOAD: {
+        commandLine: "DOWNLOAD <hash> <peer>",
+        target: "Cliente -> Peer",
+        payload: { command: "DOWNLOAD", hash: "a1b2c3d4...", peer: "peer:porta" }
+      }
+    };
+
+    const state = {
+      selectedFile: null,
+      networkFiles: [],
+      localFiles: [],
+      peers: [],
+      status: null,
+      lookupResults: [],
+      lookupTerm: ""
+    };
+
+    const terminalOutput = document.getElementById("terminalOutput");
+    const buttons = document.querySelectorAll(".protocol-btn");
+    const uploadInput = document.getElementById("uploadInput");
+    const uploadButton = document.getElementById("uploadButton");
+    const selectedFileLabel = document.getElementById("selectedFileLabel");
+    const uploadMessage = document.getElementById("uploadMessage");
+    const fileRows = document.getElementById("fileRows");
+    const peerCards = document.getElementById("peerCards");
+    const operationLog = document.getElementById("operationLog");
+    const lookupInput = document.getElementById("lookupInput");
+    const lookupButton = document.getElementById("lookupButton");
+    const heartbeatButton = document.getElementById("heartbeatButton");
+    const simulateFailureButton = document.getElementById("simulateFailureButton");
+    const resetDemoButton = document.getElementById("resetDemoButton");
+    const activePeersCount = document.getElementById("activePeersCount");
+    const trackerFilesCount = document.getElementById("trackerFilesCount");
+    const replicaHealth = document.getElementById("replicaHealth");
+    let typingTimer = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatBytes(bytes) {
+      const value = Number(bytes || 0);
+      if (value === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+      return (value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + " " + units[index];
+    }
+
+    function shortHash(hash) {
+      return hash ? hash.slice(0, 12) + "..." : "N/A";
+    }
+
+    function logOperation(message, level = "info") {
+      const colors = {
+        info: "text-slate-300",
+        success: "text-emerald-300",
+        warn: "text-yellow-300",
+        error: "text-red-300",
+        tcp: "text-blue-300"
+      };
+      const line = document.createElement("div");
+      const time = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+      line.className = colors[level] || colors.info;
+      line.textContent = "[" + time + "] " + message;
+      operationLog.prepend(line);
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(API_BASE + path, options);
+      const data = await response.json().catch(() => ({ status: "error", message: "Resposta invalida do gateway" }));
+      if (!response.ok || data.status === "error") {
+        throw new Error(data.message || "Falha na API " + path);
+      }
+      return data;
+    }
+
+    function renderPeers() {
+      peerCards.innerHTML = "";
+
+      if (!state.peers.length) {
+        peerCards.innerHTML = '<div class="rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-sm text-slate-500">Nenhum peer ativo retornado pelo Tracker.</div>';
+        return;
+      }
+
+      state.peers.forEach((peer) => {
+        const isWebPeer = state.status && peer.peer_id === state.status.peer_id;
+        const card = document.createElement("div");
+        card.className = "rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3";
+        card.innerHTML = [
+          '<div class="flex items-center justify-between gap-3">',
+          '<div>',
+          '<div class="font-mono text-sm font-semibold text-emerald-300">' + escapeHtml(peer.peer_id) + '</div>',
+          '<div class="mt-1 text-xs text-slate-400">' + escapeHtml(peer.ip + ":" + peer.port) + '</div>',
+          '</div>',
+          '<span class="rounded-full border border-emerald-400/40 px-2 py-1 font-mono text-[10px] uppercase text-emerald-300">' + (isWebPeer ? "web-ui" : "online") + '</span>',
+          '</div>',
+          '<div class="mt-3 text-xs text-slate-400">Último heartbeat: <span class="font-mono text-slate-200">' + escapeHtml(peer.last_heartbeat || "ativo") + '</span></div>'
+        ].join("");
+        peerCards.appendChild(card);
+      });
+    }
+
+    function renderFiles(files = state.networkFiles) {
+      trackerFilesCount.textContent = state.networkFiles.length;
+
+      if (!files.length) {
+        fileRows.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo encontrado no Tracker.</td></tr>';
+      } else {
+        fileRows.innerHTML = files.map((file) => {
+          const replicas = Number(file.replicas ?? file.peer_count ?? 0);
+          const peers = Array.isArray(file.peers) ? file.peers.join(", ") : (replicas ? replicas + " peer(s)" : "sem peer ativo");
+          const safe = replicas >= 2;
+          return [
+            '<tr>',
+            '<td class="px-3 py-4"><div class="font-semibold text-white">' + escapeHtml(file.filename) + '</div><div class="mt-1 text-xs text-slate-500">' + escapeHtml(formatBytes(file.size)) + '</div></td>',
+            '<td class="px-3 py-4 font-mono text-xs text-blue-300">' + escapeHtml(shortHash(file.hash)) + '</td>',
+            '<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 font-mono text-xs ' + (safe ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300") + '">' + replicas + '/2</span></td>',
+            '<td class="px-3 py-4 font-mono text-xs text-slate-300">' + escapeHtml(peers) + '</td>',
+            '<td class="px-3 py-4"><button data-filename="' + escapeHtml(file.filename) + '" data-hash="' + escapeHtml(file.hash || "") + '" class="download-btn rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-2 font-mono text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20">DOWNLOAD</button></td>',
+            '</tr>'
+          ].join("");
+        }).join("");
+      }
+
+      const allSafe = state.networkFiles.length === 0 || state.networkFiles.every((file) => Number(file.replicas ?? file.peer_count ?? 0) >= 2);
+      replicaHealth.textContent = allSafe ? "OK" : "ALERTA";
+      replicaHealth.className = "font-mono text-2xl font-bold " + (allSafe ? "text-emerald-300" : "text-red-300");
+
+      document.querySelectorAll(".download-btn").forEach((button) => {
+        button.addEventListener("click", () => downloadFile(button.dataset.filename, button.dataset.hash));
+      });
+    }
+
+    async function refreshAll(silent = false) {
+      try {
+        const [status, peers, network, local] = await Promise.all([
+          api("/status"),
+          api("/peers"),
+          api("/files/network"),
+          api("/files/local")
+        ]);
+
+        state.status = status;
+        state.peers = peers.peers || [];
+        state.networkFiles = network.files || [];
+        state.localFiles = local.files || [];
+
+        activePeersCount.textContent = state.peers.length;
+        renderPeers();
+        renderFiles();
+
+        if (!silent) {
+          logOperation("STATUS -> peer " + status.peer_id + " ativo em " + status.ip + ":" + status.port + ".", "success");
+          logOperation("LIST_ALL -> " + state.networkFiles.length + " arquivo(s) no Tracker.", "tcp");
+        }
+      } catch (error) {
+        logOperation("Gateway indisponível: " + error.message, "error");
+      }
+    }
+
+    async function publishAndReplicate() {
+      const file = state.selectedFile;
+      if (!file) {
+        uploadMessage.textContent = "Selecione um arquivo .zip antes de publicar.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-yellow-300";
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        uploadMessage.textContent = "Arquivo recusado: a temática exige envio de arquivos .zip.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-red-300";
+        return;
+      }
+
+      uploadButton.disabled = true;
+      uploadButton.textContent = "Enviando para o peer web-ui...";
+      uploadMessage.textContent = "";
+      logOperation("PUBLISH -> enviando " + file.name + " para o gateway HTTP.", "tcp");
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const result = await api("/upload", { method: "POST", body: formData });
+
+        uploadMessage.textContent = "Publicado: " + shortHash(result.hash) + " | replicação iniciada pelo backend.";
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-emerald-300";
+        payloads.LOOKUP.payload.filename = file.name;
+        payloads.LOOKUP.commandLine = "LOOKUP " + file.name;
+        payloads.DOWNLOAD.payload.hash = result.hash;
+        payloads.DOWNLOAD.commandLine = "DOWNLOAD " + shortHash(result.hash) + " <peer>";
+        logOperation("PUBLISH -> Tracker recebeu nome/hash do arquivo.", "success");
+        logOperation("REPLICATE -> peer web-ui replicou via TCP para peers disponíveis.", "success");
+        typePayload("LOOKUP");
+        await refreshAll(true);
+      } catch (error) {
+        uploadMessage.textContent = error.message;
+        uploadMessage.className = "mt-3 min-h-6 font-mono text-xs text-red-300";
+        logOperation("PUBLISH falhou: " + error.message, "error");
+      } finally {
+        uploadButton.disabled = false;
+        uploadButton.textContent = "Publicar no Tracker e Replicar";
+      }
+    }
+
+    async function lookupFiles() {
+      const term = lookupInput.value.trim();
+      state.lookupTerm = term;
+      payloads.LOOKUP.payload.filename = term || "TCC_final.zip";
+      payloads.LOOKUP.commandLine = "LOOKUP " + (term || "TCC_final.zip");
+      logOperation("LOOKUP -> buscando '" + (term || "*") + "' no Tracker real.", "tcp");
+
+      try {
+        const result = await api("/search?term=" + encodeURIComponent(term));
+        state.lookupResults = result.results || [];
+        renderFiles(state.lookupResults);
+        typePayload("LOOKUP");
+      } catch (error) {
+        logOperation("LOOKUP falhou: " + error.message, "error");
+      }
+    }
+
+    async function downloadFile(filename, hash) {
+      if (!filename) return;
+      payloads.DOWNLOAD.payload.hash = hash || "<hash>";
+      payloads.DOWNLOAD.payload.peer = "selecionado pelo backend";
+      payloads.DOWNLOAD.commandLine = "DOWNLOAD " + shortHash(hash || "<hash>") + " <peer>";
+      typePayload("DOWNLOAD");
+      logOperation("DOWNLOAD -> solicitando " + filename + " ao peer web-ui.", "tcp");
+
+      try {
+        await api("/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename })
+        });
+        logOperation("DOWNLOAD concluído e validado pelo backend: " + filename + ".", "success");
+        await refreshAll(true);
+      } catch (error) {
+        logOperation("DOWNLOAD falhou: " + error.message, "error");
+      }
+    }
+
+    async function showStatus() {
+      try {
+        const status = await api("/status");
+        state.status = status;
+        logOperation("STATUS -> " + status.peer_id + " | " + status.ip + ":" + status.port + " | arquivos locais: " + status.local_files + " | heartbeat: " + (status.heartbeat ? "sim" : "não") + ".", "success");
+        await api("/heartbeat", { method: "POST" });
+        logOperation("HEARTBEAT -> sinal enviado ao Tracker pelo peer web-ui.", "tcp");
+        await refreshAll(true);
+      } catch (error) {
+        logOperation("STATUS falhou: " + error.message, "error");
+      }
+    }
+
+    async function listLocalFiles() {
+      try {
+        const result = await api("/files/local");
+        state.localFiles = result.files || [];
+        renderFiles(state.localFiles.map((file) => ({ ...file, replicas: 1, peers: [state.status ? state.status.peer_id : "web-ui"] })));
+        logOperation("LIST_LOCAL -> " + state.localFiles.length + " arquivo(s) no storage do peer web-ui.", "success");
+      } catch (error) {
+        logOperation("LIST_LOCAL falhou: " + error.message, "error");
+      }
+    }
+
+    async function listPeers() {
+      try {
+        const result = await api("/peers");
+        state.peers = result.peers || [];
+        activePeersCount.textContent = state.peers.length;
+        renderPeers();
+        logOperation("LIST_PEERS -> " + state.peers.length + " peer(s) ativos retornados pelo Tracker.", "tcp");
+      } catch (error) {
+        logOperation("LIST_PEERS falhou: " + error.message, "error");
+      }
+    }
+
+    function setActiveButton(command) {
+      buttons.forEach((button) => {
+        const active = button.dataset.command === command;
+        button.classList.toggle("border-emerald-400", active);
+        button.classList.toggle("bg-emerald-500/10", active);
+        button.classList.toggle("text-emerald-200", active);
+      });
+    }
+
+    function typePayload(command) {
+      clearInterval(typingTimer);
+      setActiveButton(command);
+      const selected = payloads[command];
+      const output = "> rota: " + selected.target + "\n> protocolo: " + selected.commandLine + "\n> payload JSON:\n" + JSON.stringify(selected.payload, null, 2);
+      let index = 0;
+      terminalOutput.textContent = "";
+      typingTimer = setInterval(() => {
+        terminalOutput.textContent += output.charAt(index);
+        index += 1;
+        if (index >= output.length) clearInterval(typingTimer);
+      }, 18);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => typePayload(button.dataset.command));
+    });
+
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files[0];
+      state.selectedFile = file || null;
+      selectedFileLabel.textContent = file ? file.name + " | " + formatBytes(file.size) : "Selecionar arquivo .zip";
+      uploadMessage.textContent = file && !file.name.toLowerCase().endsWith(".zip")
+        ? "Atenção: selecione um .zip para cumprir a temática."
+        : "";
+      uploadMessage.className = file && !file.name.toLowerCase().endsWith(".zip")
+        ? "mt-3 min-h-6 font-mono text-xs text-yellow-300"
+        : "mt-3 min-h-6 font-mono text-xs text-slate-400";
+    });
+
+    uploadButton.addEventListener("click", publishAndReplicate);
+    lookupButton.addEventListener("click", lookupFiles);
+    lookupInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") lookupFiles();
+    });
+    heartbeatButton.addEventListener("click", showStatus);
+    simulateFailureButton.addEventListener("click", listLocalFiles);
+    resetDemoButton.addEventListener("click", listPeers);
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      logOperation("Conectando ao gateway HTTP em " + API_BASE + "...", "tcp");
+      await refreshAll();
+      typePayload("LIST");
+    });
+  </script>
+</body>
+</html>

@@ -1,6 +1,44 @@
-version: '3.8'
-
 services:
+  hotsite:
+    image: nginx:alpine
+    container_name: p2p_hotsite
+    ports:
+      - "8081:80"
+    volumes:
+      - ./hotsite/index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - p2p_network
+    depends_on:
+      - grafana
+      - web-gateway
+    restart: unless-stopped
+
+  web-gateway:
+    build:
+      context: ./peer
+      dockerfile: Dockerfile
+    container_name: p2p_web_gateway
+    command: ["python", "web_gateway.py"]
+    environment:
+      - TRACKER_HOST=tracker
+      - TRACKER_PORT=5000
+      - PEER_PORT=6200
+      - PEER_ID=web-ui
+      - API_PORT=8080
+    ports:
+      - "8082:8080"
+      - "6200:6200"
+    volumes:
+      - ./web_peer_files:/app/files_web-ui
+    networks:
+      - p2p_network
+    depends_on:
+      - tracker
+      - peer1
+      - peer2
+      - peer3
+    restart: unless-stopped
+
   tracker:
     build:
       context: ./tracker
@@ -77,6 +115,45 @@ services:
     restart: unless-stopped
     stdin_open: true
     tty: true
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - p2p_network
+    depends_on:
+      - tracker
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - p2p_network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    pid: "host"
+    network_mode: "host"
+    volumes:
+      - /:/rootfs:ro
+    command:
+      - "--path.rootfs=/rootfs"
+    restart: unless-stopped
 
 networks:
   p2p_network:

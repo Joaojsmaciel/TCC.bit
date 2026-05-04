@@ -77,6 +77,8 @@ Sistematcc/
 
 ## 🚀 Como Executar
 
+📌 **Roteiro de apresentação:** veja [APRESENTACAO.md](APRESENTACAO.md) para o passo a passo de uso do hotsite, gateway web, Grafana, Prometheus e teste E2E.
+
 ### Pré-requisitos
 - Docker
 - Docker Compose

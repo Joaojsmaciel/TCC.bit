@@ -10,6 +10,14 @@ import json
 import time
 from datetime import datetime
 
+from prometheus_client import Gauge, start_http_server
+
+P2P_ACTIVE_PEERS = Gauge(
+    'p2p_active_peers',
+    'Quantidade de peers ativos registrados no tracker'
+)
+
+
 class Tracker:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
@@ -20,6 +28,8 @@ class Tracker:
         self.running = True
         self.heartbeat_timeout = 60  # segundos
         self.min_replicas = 2
+        start_http_server(8000)
+        P2P_ACTIVE_PEERS.set(0)
 
     @staticmethod
     def send_json(sock, message):
@@ -125,6 +135,7 @@ class Tracker:
                 'port': port,
                 'last_heartbeat': datetime.now()
             }
+            P2P_ACTIVE_PEERS.set(len(self.peers))
         
         print(f"[TRACKER] Peer registrado: {peer_id} ({ip}:{port})")
         return {'status': 'success', 'message': 'Peer registrado com sucesso'}
@@ -252,6 +263,7 @@ class Tracker:
         with self.lock:
             if peer_id in self.peers:
                 del self.peers[peer_id]
+                P2P_ACTIVE_PEERS.set(len(self.peers))
                 print(f"[TRACKER] Peer removido: {peer_id}")
         
         return {'status': 'success'}
@@ -273,6 +285,9 @@ class Tracker:
                 for peer_id in inactive_peers:
                     print(f"[TRACKER] Removendo peer inativo: {peer_id}")
                     del self.peers[peer_id]
+
+                if inactive_peers:
+                    P2P_ACTIVE_PEERS.set(len(self.peers))
 
             if inactive_peers:
                 # Verificar fora do lock para nao bloquear novas requisicoes.
