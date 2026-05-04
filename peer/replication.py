@@ -13,12 +13,14 @@ class ReplicationManager:
         self.peer_id = peer_id
         self.min_replicas = 2
     
-    def replicate_file(self, filename, file_hash):
+    def replicate_file(self, filename, file_hash, required_successes=None, exclude_peer_ids=None):
         """
         Replica um arquivo para outros peers
         Garante que haja pelo menos 2 réplicas (além do original)
         """
         print(f"[REPLICATION] Iniciando replicação de '{filename}'")
+        required_successes = required_successes or self.min_replicas
+        exclude_peer_ids = set(exclude_peer_ids or [])
         
         # Obter lista de peers disponíveis
         response = self.network_manager.list_peers()
@@ -27,16 +29,16 @@ class ReplicationManager:
             return False
         
         peers = response.get('peers', [])
-        
-        # Filtrar peers (excluir a si mesmo)
-        available_peers = [p for p in peers if p['peer_id'] != self.peer_id]
-        
-        if len(available_peers) < self.min_replicas:
-            print(f"[REPLICATION] AVISO: Apenas {len(available_peers)} peer(s) disponível(is). Ideal: {self.min_replicas}")
-        
-        # Selecionar peers aleatoriamente para replicação
-        num_replicas = min(self.min_replicas, len(available_peers))
-        selected_peers = random.sample(available_peers, num_replicas) if available_peers else []
+
+        # Filtrar peers: nao replica para si mesmo nem para peers que ja possuem o arquivo.
+        available_peers = [
+            p for p in peers
+            if p['peer_id'] != self.peer_id and p['peer_id'] not in exclude_peer_ids
+        ]
+        random.shuffle(available_peers)
+
+        if len(available_peers) < required_successes:
+            print(f"[REPLICATION] AVISO: Apenas {len(available_peers)} peer(s) candidato(s). Necessario: {required_successes}")
         
         file_path = self.file_manager.get_file_path(filename)
         if not file_path:
@@ -45,7 +47,13 @@ class ReplicationManager:
         
         success_count = 0
         
-        for peer in selected_peers:
+        attempted = 0
+
+        for peer in available_peers:
+            if success_count >= required_successes:
+                break
+
+            attempted += 1
             peer_ip = peer['ip']
             peer_port = peer['port']
             peer_id = peer['peer_id']
@@ -53,21 +61,21 @@ class ReplicationManager:
             print(f"[REPLICATION] Enviando para {peer_id} ({peer_ip}:{peer_port})")
             
             success, message = self.network_manager.send_file_to_peer(
-                peer_ip, peer_port, filename, file_path
+                peer_ip, peer_port, filename, file_path, file_hash
             )
             
             if success:
-                print(f"[REPLICATION] ✓ Réplica criada em {peer_id}")
+                print(f"[REPLICATION] OK: Replica criada em {peer_id}")
                 
                 # Notificar o tracker que o peer agora tem o arquivo
                 # (isso seria feito pelo peer receptor ao receber o arquivo)
                 success_count += 1
             else:
-                print(f"[REPLICATION] ✗ Falha ao enviar para {peer_id}: {message}")
+                print(f"[REPLICATION] FALHA ao enviar para {peer_id}: {message}")
         
-        print(f"[REPLICATION] Concluído: {success_count}/{num_replicas} réplicas criadas")
+        print(f"[REPLICATION] Concluído: {success_count}/{required_successes} réplicas criadas ({attempted} tentativa(s))")
         
-        return success_count > 0
+        return success_count >= required_successes
     
     def check_file_replication(self, filename):
         """

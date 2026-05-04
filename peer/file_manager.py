@@ -100,6 +100,13 @@ class FileManager:
         if filename in self.metadata:
             return self.metadata[filename]
         return None
+
+    def get_file_by_hash(self, file_hash):
+        """Retorna (filename, info) para o hash informado."""
+        for filename, info in self.metadata.items():
+            if info.get('hash') == file_hash and os.path.exists(info.get('path', '')):
+                return filename, info
+        return None, None
     
     def list_files(self):
         """Lista todos os arquivos do peer"""
@@ -147,3 +154,8 @@ class FileManager:
         stored_hash = self.metadata[filename]['hash']
         
         return current_hash == stored_hash
+
+    def verify_file_hash(self, file_path, expected_hash):
+        """Verifica se o arquivo em file_path possui o hash esperado."""
+        current_hash = self.calculate_hash(file_path)
+        return current_hash == expected_hash, current_hash

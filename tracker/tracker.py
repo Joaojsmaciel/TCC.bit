@@ -8,18 +8,39 @@ import socket
 import threading
 import json
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Set
+from datetime import datetime
 
 class Tracker:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
         self.peers = {}  # {peer_id: {'ip': ip, 'port': port, 'last_heartbeat': timestamp}}
-        self.files = {}  # {filename: {'hash': hash, 'peers': [peer_id1, peer_id2]}}
+        self.files = {}  # {hash: {'filename': filename, 'peers': [peer_id1, peer_id2]}}
         self.lock = threading.Lock()
         self.running = True
         self.heartbeat_timeout = 60  # segundos
+        self.min_replicas = 2
+
+    @staticmethod
+    def send_json(sock, message):
+        payload = json.dumps(message).encode('utf-8') + b'\n'
+        sock.sendall(payload)
+
+    @staticmethod
+    def recv_json(sock):
+        data = bytearray()
+        while True:
+            chunk = sock.recv(1)
+            if not chunk:
+                break
+            if chunk == b'\n':
+                break
+            data.extend(chunk)
+
+        if not data:
+            raise ConnectionError("Conexao encerrada antes do JSON")
+
+        return json.loads(data.decode('utf-8'))
         
     def start(self):
         """Inicia o servidor tracker"""
@@ -51,11 +72,7 @@ class Tracker:
     def handle_client(self, client_socket, address):
         """Processa requisições de clientes"""
         try:
-            data = client_socket.recv(4096).decode('utf-8')
-            if not data:
-                return
-                
-            request = json.loads(data)
+            request = self.recv_json(client_socket)
             command = request.get('command')
             
             print(f"[TRACKER] Recebido {command} de {address}")
@@ -72,6 +89,9 @@ class Tracker:
                 response = self.lookup_file(request)
             elif command == 'WHEREIS':
                 response = self.whereis(request)
+            elif command == 'LIST':
+                target = request.get('target', 'files')
+                response = self.list_peers() if target == 'peers' else self.list_files()
             elif command == 'LIST_PEERS':
                 response = self.list_peers()
             elif command == 'LIST_FILES':
@@ -81,12 +101,12 @@ class Tracker:
             else:
                 response = {'status': 'error', 'message': 'Comando desconhecido'}
             
-            client_socket.send(json.dumps(response).encode('utf-8'))
+            self.send_json(client_socket, response)
             
         except Exception as e:
             error_response = {'status': 'error', 'message': str(e)}
             try:
-                client_socket.send(json.dumps(error_response).encode('utf-8'))
+                self.send_json(client_socket, error_response)
             except:
                 pass
             print(f"[TRACKER] Erro ao processar requisição: {e}")
@@ -125,16 +145,19 @@ class Tracker:
         filename = request.get('filename')
         file_hash = request.get('hash')
         peer_id = request.get('peer_id')
+
+        if not filename or not file_hash or not peer_id:
+            return {'status': 'error', 'message': 'Metadados incompletos'}
         
         with self.lock:
-            if filename not in self.files:
-                self.files[filename] = {
-                    'hash': file_hash,
+            if file_hash not in self.files:
+                self.files[file_hash] = {
+                    'filename': filename,
                     'peers': []
                 }
             
-            if peer_id not in self.files[filename]['peers']:
-                self.files[filename]['peers'].append(peer_id)
+            if peer_id not in self.files[file_hash]['peers']:
+                self.files[file_hash]['peers'].append(peer_id)
         
         print(f"[TRACKER] Arquivo publicado: {filename} por {peer_id}")
         return {'status': 'success', 'message': 'Arquivo publicado com sucesso'}
@@ -145,14 +168,15 @@ class Tracker:
         
         with self.lock:
             results = []
-            for filename, info in self.files.items():
+            for file_hash, info in self.files.items():
+                filename = info['filename']
                 if search_term in filename.lower():
                     # Filtrar apenas peers ativos
                     active_peers = [p for p in info['peers'] if p in self.peers]
                     if active_peers:
                         results.append({
                             'filename': filename,
-                            'hash': info['hash'],
+                            'hash': file_hash,
                             'peer_count': len(active_peers)
                         })
         
@@ -161,12 +185,20 @@ class Tracker:
     def whereis(self, request):
         """Retorna a lista de peers que possuem um arquivo"""
         filename = request.get('filename')
+        file_hash = request.get('hash')
         
         with self.lock:
-            if filename in self.files:
+            if not file_hash and filename:
+                for candidate_hash, info in self.files.items():
+                    if info['filename'] == filename:
+                        file_hash = candidate_hash
+                        break
+
+            if file_hash in self.files:
+                info = self.files[file_hash]
                 # Retornar apenas peers ativos
                 active_peers = []
-                for peer_id in self.files[filename]['peers']:
+                for peer_id in info['peers']:
                     if peer_id in self.peers:
                         peer_info = self.peers[peer_id]
                         active_peers.append({
@@ -177,8 +209,8 @@ class Tracker:
                 
                 return {
                     'status': 'success',
-                    'filename': filename,
-                    'hash': self.files[filename]['hash'],
+                    'filename': info['filename'],
+                    'hash': file_hash,
                     'peers': active_peers
                 }
             else:
@@ -202,11 +234,11 @@ class Tracker:
         """Lista todos os arquivos registrados"""
         with self.lock:
             files_list = []
-            for filename, info in self.files.items():
+            for file_hash, info in self.files.items():
                 active_peers = [p for p in info['peers'] if p in self.peers]
                 files_list.append({
-                    'filename': filename,
-                    'hash': info['hash'],
+                    'filename': info['filename'],
+                    'hash': file_hash,
                     'replicas': len(active_peers),
                     'peers': active_peers
                 })
@@ -241,19 +273,69 @@ class Tracker:
                 for peer_id in inactive_peers:
                     print(f"[TRACKER] Removendo peer inativo: {peer_id}")
                     del self.peers[peer_id]
-                    
-                    # Verificar se algum arquivo precisa de re-replicação
-                    self.check_replication()
+
+            if inactive_peers:
+                # Verificar fora do lock para nao bloquear novas requisicoes.
+                self.check_replication()
     
     def check_replication(self):
         """Verifica arquivos que precisam de re-replicação"""
-        for filename, info in self.files.items():
-            active_peers = [p for p in info['peers'] if p in self.peers]
-            
-            if len(active_peers) < 2 and len(active_peers) > 0:
-                print(f"[TRACKER] ALERTA: Arquivo '{filename}' tem apenas {len(active_peers)} réplica(s)")
-            elif len(active_peers) == 0:
-                print(f"[TRACKER] ALERTA: Arquivo '{filename}' não tem réplicas disponíveis")
+        replication_jobs = []
+
+        with self.lock:
+            for file_hash, info in self.files.items():
+                active_holders = [p for p in info['peers'] if p in self.peers]
+
+                if len(active_holders) == 0:
+                    print(f"[TRACKER] ALERTA: Arquivo '{info['filename']}' não tem réplicas disponíveis")
+                    continue
+
+                if len(active_holders) >= self.min_replicas:
+                    continue
+
+                source_peer_id = active_holders[0]
+                source_peer = self.peers[source_peer_id]
+                required_successes = self.min_replicas - len(active_holders)
+                candidates = [p for p in self.peers if p not in active_holders]
+
+                if not candidates:
+                    print(f"[TRACKER] ALERTA: Arquivo '{info['filename']}' precisa de re-replicação, mas nao ha destino ativo")
+                    continue
+
+                replication_jobs.append({
+                    'source_peer_id': source_peer_id,
+                    'source_ip': source_peer['ip'],
+                    'source_port': source_peer['port'],
+                    'filename': info['filename'],
+                    'hash': file_hash,
+                    'required_successes': required_successes,
+                    'exclude_peers': active_holders
+                })
+
+        for job in replication_jobs:
+            self.force_replicate(job)
+
+    def force_replicate(self, job):
+        """Instrui um peer ativo a criar novas réplicas do arquivo."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(10)
+                sock.connect((job['source_ip'], job['source_port']))
+                self.send_json(sock, {
+                    'command': 'FORCE_REPLICATE',
+                    'filename': job['filename'],
+                    'hash': job['hash'],
+                    'required_successes': job['required_successes'],
+                    'exclude_peers': job['exclude_peers']
+                })
+                response = self.recv_json(sock)
+
+            if response.get('status') == 'accepted':
+                print(f"[TRACKER] FORCE_REPLICATE enviado para {job['source_peer_id']} ({job['filename']})")
+            else:
+                print(f"[TRACKER] FORCE_REPLICATE recusado por {job['source_peer_id']}: {response.get('message')}")
+        except Exception as e:
+            print(f"[TRACKER] Falha ao enviar FORCE_REPLICATE para {job['source_peer_id']}: {e}")
 
 def main():
     tracker = Tracker(host='0.0.0.0', port=5000)

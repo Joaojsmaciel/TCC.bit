@@ -6,18 +6,22 @@ Atua como cliente e servidor simultaneamente
 
 import socket
 import threading
-import json
 import os
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from network import NetworkManager
 from file_manager import FileManager
 from heartbeat import HeartbeatManager
 from replication import ReplicationManager
 from ui import CLI
-from gui import PeerGUI
+
+try:
+    from gui import PeerGUI
+except Exception:
+    PeerGUI = None
 
 class Peer:
     def __init__(self, tracker_host, tracker_port, peer_port=None, peer_id=None):
@@ -41,6 +45,7 @@ class Peer:
         self.running = False
         self.server_socket = None
         self.server_thread = None
+        self.client_executor = ThreadPoolExecutor(max_workers=10)
     
     def get_local_ip(self):
         """Obtém o IP local do peer"""
@@ -108,6 +113,8 @@ class Peer:
                 self.server_socket.close()
             except:
                 pass
+
+        self.client_executor.shutdown(wait=False, cancel_futures=True)
         
         print(f"[PEER] Peer encerrado")
     
@@ -125,12 +132,7 @@ class Peer:
             while self.running:
                 try:
                     client_socket, address = self.server_socket.accept()
-                    client_thread = threading.Thread(
-                        target=self.handle_peer_request,
-                        args=(client_socket, address),
-                        daemon=True
-                    )
-                    client_thread.start()
+                    self.client_executor.submit(self.handle_peer_request, client_socket, address)
                 except socket.timeout:
                     continue
                 except Exception as e:
@@ -143,20 +145,18 @@ class Peer:
     def handle_peer_request(self, client_socket, address):
         """Processa requisições de outros peers"""
         try:
-            data = client_socket.recv(1024).decode('utf-8')
-            if not data:
-                return
-            
-            request = json.loads(data)
+            request = NetworkManager.recv_json(client_socket)
             command = request.get('command')
             
             if command == 'DOWNLOAD':
                 self.handle_download_request(client_socket, request)
             elif command == 'UPLOAD':
                 self.handle_upload_request(client_socket, request)
+            elif command == 'FORCE_REPLICATE':
+                self.handle_force_replicate_request(client_socket, request)
             else:
                 response = {'status': 'error', 'message': 'Comando desconhecido'}
-                client_socket.send(json.dumps(response).encode('utf-8'))
+                NetworkManager.send_json(client_socket, response)
         
         except Exception as e:
             print(f"[PEER SERVER] Erro ao processar requisição: {e}")
@@ -165,11 +165,18 @@ class Peer:
     
     def handle_download_request(self, client_socket, request):
         """Processa requisição de download de arquivo"""
+        file_hash = request.get('hash')
         filename = request.get('filename')
-        
-        if not self.file_manager.has_file(filename):
+
+        if file_hash:
+            stored_filename, info = self.file_manager.get_file_by_hash(file_hash)
+            filename = stored_filename or filename
+        else:
+            info = self.file_manager.get_file_info(filename)
+
+        if not filename or not info or not self.file_manager.has_file(filename):
             response = {'status': 'error', 'message': 'Arquivo não encontrado'}
-            client_socket.send(json.dumps(response).encode('utf-8'))
+            NetworkManager.send_json(client_socket, response)
             return
         
         file_path = self.file_manager.get_file_path(filename)
@@ -178,9 +185,16 @@ class Peer:
         # Enviar resposta inicial
         response = {
             'status': 'success',
-            'file_size': file_size
+            'filename': filename,
+            'file_size': file_size,
+            'hash': info.get('hash')
         }
-        client_socket.send(json.dumps(response).encode('utf-8'))
+        NetworkManager.send_json(client_socket, response)
+
+        ack = NetworkManager.recv_json(client_socket)
+        if ack.get('status') != 'ack':
+            print(f"[PEER SERVER] Download de '{filename}' cancelado: ACK ausente")
+            return
         
         # Enviar arquivo em blocos
         print(f"[PEER SERVER] Enviando arquivo '{filename}' ({file_size} bytes)")
@@ -191,7 +205,7 @@ class Peer:
                     chunk = f.read(1024)
                     if not chunk:
                         break
-                    client_socket.send(chunk)
+                    client_socket.sendall(chunk)
             
             print(f"[PEER SERVER] Arquivo '{filename}' enviado com sucesso")
         except Exception as e:
@@ -199,12 +213,17 @@ class Peer:
     
     def handle_upload_request(self, client_socket, request):
         """Processa requisição de upload de arquivo (replicação)"""
-        filename = request.get('filename')
+        filename = os.path.basename(request.get('filename', ''))
         file_size = request.get('file_size', 0)
+        expected_hash = request.get('hash')
+
+        if not filename or file_size < 0:
+            NetworkManager.send_json(client_socket, {'status': 'error', 'message': 'Metadados invalidos'})
+            return
         
         # Enviar confirmação
         response = {'status': 'ready'}
-        client_socket.send(json.dumps(response).encode('utf-8'))
+        NetworkManager.send_json(client_socket, response)
         
         # Receber arquivo
         file_path = os.path.join(self.file_manager.storage_dir, filename)
@@ -212,14 +231,27 @@ class Peer:
         print(f"[PEER SERVER] Recebendo arquivo '{filename}' ({file_size} bytes)")
         
         try:
-            received = 0
-            with open(file_path, 'wb') as f:
-                while received < file_size:
-                    chunk = client_socket.recv(1024)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    received += len(chunk)
+            received = NetworkManager.recv_exact_to_file(client_socket, file_path, file_size)
+
+            if received != file_size:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                NetworkManager.send_json(
+                    client_socket,
+                    {'status': 'error', 'message': f'Upload incompleto: {received}/{file_size} bytes'}
+                )
+                return
+
+            if expected_hash:
+                valid_hash, calculated_hash = self.file_manager.verify_file_hash(file_path, expected_hash)
+                if not valid_hash:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    NetworkManager.send_json(
+                        client_socket,
+                        {'status': 'error', 'message': f'Hash invalido: {calculated_hash}'}
+                    )
+                    return
             
             # Adicionar arquivo ao gerenciador
             success, result = self.file_manager.add_file(file_path, filename)
@@ -229,11 +261,48 @@ class Peer:
                 
                 # Publicar no tracker
                 self.network.publish_file(self.peer_id, filename, result)
+                NetworkManager.send_json(client_socket, {'status': 'success', 'hash': result})
             else:
                 print(f"[PEER SERVER] Erro ao registrar arquivo: {result}")
+                NetworkManager.send_json(client_socket, {'status': 'error', 'message': result})
         
         except Exception as e:
             print(f"[PEER SERVER] Erro ao receber arquivo: {e}")
+            try:
+                NetworkManager.send_json(client_socket, {'status': 'error', 'message': str(e)})
+            except:
+                pass
+
+    def handle_force_replicate_request(self, client_socket, request):
+        """Processa instrucao do tracker para re-replicar um arquivo."""
+        filename = request.get('filename')
+        file_hash = request.get('hash')
+        required_successes = request.get('required_successes', 1)
+        exclude_peers = request.get('exclude_peers', [])
+
+        if not filename or not file_hash:
+            NetworkManager.send_json(client_socket, {'status': 'error', 'message': 'Metadados invalidos'})
+            return
+
+        stored_filename, file_info = self.file_manager.get_file_by_hash(file_hash)
+        if not file_info:
+            NetworkManager.send_json(client_socket, {'status': 'error', 'message': 'Arquivo nao encontrado localmente'})
+            return
+
+        filename = stored_filename or filename
+
+        NetworkManager.send_json(client_socket, {'status': 'accepted'})
+
+        replication_thread = threading.Thread(
+            target=self.replication.replicate_file,
+            args=(filename, file_hash),
+            kwargs={
+                'required_successes': required_successes,
+                'exclude_peer_ids': exclude_peers
+            },
+            daemon=True
+        )
+        replication_thread.start()
     
     def publish_file(self, file_path):
         """Publica um arquivo na rede"""
@@ -308,6 +377,11 @@ class Peer:
         peer_ip = selected_peer['ip']
         peer_port = selected_peer['port']
         peer_id = selected_peer['peer_id']
+        file_hash = response.get('hash')
+
+        if not file_hash:
+            self.ui.print_error("Tracker nao informou hash do arquivo")
+            return False
         
         self.ui.print_info(f"Baixando de {peer_id} ({peer_ip}:{peer_port})")
         
@@ -318,13 +392,22 @@ class Peer:
             self.ui.print_progress_bar(current, total)
         
         success, message = self.network.download_file_from_peer(
-            peer_ip, peer_port, filename, save_path, progress_callback
+            peer_ip, peer_port, file_hash, save_path, filename, progress_callback
         )
         
         print()  # Nova linha após barra de progresso
         
         if not success:
+            if os.path.exists(save_path):
+                os.remove(save_path)
             self.ui.print_error(f"Erro ao baixar arquivo: {message}")
+            return False
+
+        valid_hash, calculated_hash = self.file_manager.verify_file_hash(save_path, file_hash)
+        if not valid_hash:
+            if os.path.exists(save_path):
+                os.remove(save_path)
+            self.ui.print_error(f"Hash invalido apos download: esperado {file_hash}, obtido {calculated_hash}")
             return False
         
         # Registrar arquivo localmente
@@ -417,6 +500,9 @@ class Peer:
     
     def run_gui(self):
         """Executa a interface gráfica"""
+        if PeerGUI is None:
+            self.ui.print_error("Interface grafica indisponivel: tkinter nao esta instalado")
+            return
         gui = PeerGUI(self)
         gui.run()
 
