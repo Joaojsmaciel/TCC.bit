@@ -2,6 +2,55 @@
 
 Sistema distribuído de compartilhamento de arquivos baseado em arquitetura P2P híbrida (com servidor tracker central), desenvolvido em Python com suporte completo a Docker.
 
+---
+
+## 📑 Índice
+
+- [🚀 Início Rápido](#-início-rápido)
+- [🔗 URLs do Sistema](#-urls-do-sistema)
+- [🎯 Características](#-características)
+- [🏗️ Arquitetura](#-arquitetura)
+- [📂 Estrutura do Projeto](#-estrutura-do-projeto)
+- [🚀 Como Executar](#-como-executar)
+- [🛠️ Scripts de Gerenciamento](#-scripts-de-gerenciamento)
+- [🌐 Interface Web (Hotsite)](#-interface-web-hotsite)
+- [🎨 Interface Gráfica Local (GUI)](#-interface-gráfica-local-gui)
+- [📖 Exemplos de Uso](#-exemplos-de-uso)
+- [🧪 Testes de Tolerância a Falhas](#-testes-de-tolerância-a-falhas)
+- [🔧 Comunicação](#-comunicação)
+- [🔁 Sistema de Replicação](#-sistema-de-replicação)
+- [📊 Monitoramento](#-monitoramento)
+- [🛠️ Comandos Docker Úteis](#-comandos-docker-úteis)
+- [🐛 Troubleshooting](#-troubleshooting)
+
+---
+
+## 🚀 Início Rápido
+
+```bash
+# 1. Iniciar o sistema completo
+docker-compose up -d --build
+
+# 2. Acessar interface web
+# Abra no navegador: http://localhost:8081
+```
+
+📖 **Guia completo:** Veja [QUICKSTART.md](QUICKSTART.md) para instruções detalhadas  
+🎬 **Demonstração:** Veja [APRESENTACAO.md](APRESENTACAO.md) para roteiro de apresentação
+
+## 🔗 URLs do Sistema
+
+Após iniciar com `docker-compose up -d --build`, acesse:
+
+| Serviço | URL | Descrição |
+|---------|-----|-----------|
+| 🌐 **Hotsite** | http://localhost:8081 | Dashboard web principal |
+| 🔌 **API Gateway** | http://localhost:8082/api/status | API REST do sistema |
+| 📊 **Grafana** | http://localhost:3000 | Monitoramento visual (admin/admin) |
+| 📈 **Prometheus** | http://localhost:9090 | Métricas do sistema |
+| 📡 **Tracker** | tcp://localhost:5000 | Servidor central (TCP) |
+| 👥 **Peers** | tcp://localhost:6001-6003 | Nós da rede P2P |
+
 ## 🎯 Características
 
 - **Arquitetura P2P Híbrida**: Servidor tracker central + peers distribuídos
@@ -9,6 +58,9 @@ Sistema distribuído de compartilhamento de arquivos baseado em arquitetura P2P 
 - **Heartbeat**: Monitoramento automático de peers ativos (30 segundos)
 - **Interface CLI Interativa**: Menu intuitivo com tabelas formatadas e barra de progresso
 - **🎨 Interface Gráfica (GUI)**: Interface moderna com tkinter para facilitar o uso
+- **🌐 Interface Web (Hotsite)**: Dashboard web completo na porta 8081 para demonstrações
+- **🔌 Web Gateway API**: API REST na porta 8082 integrada ao sistema P2P
+- **📊 Monitoramento**: Stack completa com Prometheus (9090) e Grafana (3000)
 - **Comunicação TCP**: JSON entre cliente-tracker, transferência binária entre peers
 - **Concorrência**: Threading para múltiplas operações simultâneas
 - **Docker**: Ambiente completo containerizado com docker-compose
@@ -61,40 +113,95 @@ Cada peer funciona como **cliente E servidor**:
 Sistematcc/
 ├── tracker/
 │   ├── tracker.py           # Servidor tracker
+│   ├── requirements.txt
 │   └── Dockerfile
 ├── peer/
-│   ├── peer.py              # Aplicação principal do peer
+│   ├── peer.py              # Aplicação principal do peer (CLI)
+│   ├── peer_gui.py          # Ponto de entrada para GUI
+│   ├── web_gateway.py       # Gateway web com API REST
 │   ├── network.py           # Gerenciamento de rede
 │   ├── file_manager.py      # Gerenciamento de arquivos
 │   ├── heartbeat.py         # Sistema de heartbeat
 │   ├── replication.py       # Lógica de replicação
 │   ├── ui.py                # Interface CLI
+│   ├── gui.py               # Interface Gráfica
 │   └── Dockerfile
+├── hotsite/
+│   └── index.html           # Dashboard web de apresentação
+├── config/
+│   └── prometheus.yml       # Configuração do Prometheus
 ├── docker-compose.yml       # Orquestração de containers
-├── shared_files/            # Diretório compartilhado (criado automaticamente)
-└── README.md
+├── manage.ps1               # Script de gerenciamento (Windows)
+├── run_gui.ps1              # Script para executar GUI (Windows)
+├── Makefile                 # Comandos make (Linux/Mac)
+├── shared_files/            # Diretório compartilhado
+├── APRESENTACAO.md          # Roteiro de apresentação completo
+├── QUICKSTART.md            # Guia de início rápido
+├── GUI_GUIDE.md             # Guia da interface gráfica
+└── README.md                # Este arquivo
 ```
 
 ## 🚀 Como Executar
 
-📌 **Roteiro de apresentação:** veja [APRESENTACAO.md](APRESENTACAO.md) para o passo a passo de uso do hotsite, gateway web, Grafana, Prometheus e teste E2E.
+### 📌 Roteiro Completo de Apresentação
+
+**Para demonstração do sistema completo**, veja [APRESENTACAO.md](APRESENTACAO.md) com:
+- Uso do hotsite web (porta 8081)
+- Gateway web API (porta 8082)
+- Monitoramento com Grafana (porta 3000)
+- Métricas do Prometheus (porta 9090)
+- Teste E2E automatizado
 
 ### Pré-requisitos
 - Docker
 - Docker Compose
 
-### Passo 1: Build e Iniciar Containers
+### Opção 1: Execução Completa com Interface Web (Recomendado)
 
 ```bash
 # Na raiz do projeto
-docker-compose up --build
+docker-compose up -d --build
 ```
 
 Isso iniciará:
-- 1 Tracker (porta 5000)
-- 3 Peers (portas 6001, 6002, 6003)
+- **1 Tracker** (porta 5000) - Servidor central
+- **3 Peers** (portas 6001, 6002, 6003) - Nós da rede
+- **Web Gateway** (porta 8082) - API REST + Peer integrado (porta 6200)
+- **Hotsite** (porta 8081) - Dashboard web de apresentação
+- **Prometheus** (porta 9090) - Coleta de métricas
+- **Grafana** (porta 3000) - Dashboards de monitoramento
+- **Node Exporter** - Métricas do sistema
 
-### Passo 2: Acessar um Peer
+**Acesse:**
+- 🌐 **Hotsite:** http://localhost:8081 (interface web principal)
+- 📊 **Grafana:** http://localhost:3000 (usuário: admin, senha: admin)
+- 📈 **Prometheus:** http://localhost:9090
+- 🔌 **API Status:** http://localhost:8082/api/status
+
+### Opção 2: Usando Scripts de Gerenciamento
+
+**Windows (PowerShell):**
+```powershell
+.\manage.ps1 up
+```
+
+**Linux/Mac:**
+```bash
+make up
+```
+
+### Passo 2: Escolher Interface
+
+#### A) Interface Web (Mais Fácil)
+
+Acesse http://localhost:8081 no navegador e use o dashboard web:
+- Visualize status da rede
+- Publique arquivos via interface gráfica
+- Busque e baixe arquivos
+- Monitore peers ativos
+- Acesse Grafana e Prometheus
+
+#### B) Interface CLI (Docker)
 
 Abra um novo terminal e acesse um peer:
 
@@ -107,6 +214,60 @@ docker exec -it p2p_peer2 python peer.py
 
 # Ou Peer 3
 docker exec -it p2p_peer3 python peer.py
+```
+
+#### C) Interface Gráfica Local (GUI)
+
+**Windows:**
+```powershell
+.\run_gui.ps1
+```
+
+Veja [GUI_GUIDE.md](GUI_GUIDE.md) para mais detalhes.
+
+## 🛠️ Scripts de Gerenciamento
+
+O sistema inclui scripts para facilitar o gerenciamento:
+
+### Windows (PowerShell)
+
+Use `manage.ps1` para operações comuns:
+
+```powershell
+.\manage.ps1 up          # Iniciar sistema
+.\manage.ps1 down        # Parar sistema
+.\manage.ps1 restart     # Reiniciar sistema
+.\manage.ps1 logs        # Ver logs
+.\manage.ps1 peer1       # Acessar peer1
+.\manage.ps1 peer2       # Acessar peer2
+.\manage.ps1 peer3       # Acessar peer3
+.\manage.ps1 status      # Ver status
+.\manage.ps1 clean       # Limpar containers e volumes
+.\manage.ps1 rebuild     # Reconstruir tudo
+.\manage.ps1 files       # Criar arquivos de teste
+```
+
+Execute GUI:
+```powershell
+.\run_gui.ps1           # Iniciar interface gráfica
+```
+
+### Linux/Mac (Makefile)
+
+Use comandos `make`:
+
+```bash
+make up                 # Iniciar sistema
+make down               # Parar sistema
+make restart            # Reiniciar sistema
+make logs               # Ver logs
+make peer1              # Acessar peer1
+make peer2              # Acessar peer2
+make peer3              # Acessar peer3
+make status             # Ver status
+make clean              # Limpar containers e volumes
+make rebuild            # Reconstruir tudo
+make test               # Criar arquivos de teste e iniciar
 ```
 
 ### Passo 3: Usar a Interface
@@ -128,11 +289,35 @@ A interface CLI será exibida com o menu:
 └─────────────────────────────────────────────────────┘
 ```
 
-## 🎨 Interface Gráfica (GUI)
+## � Interface Web (Hotsite)
 
-O sistema agora possui uma **interface gráfica moderna** desenvolvida com tkinter!
+O sistema possui um **dashboard web completo** para demonstrações e uso intuitivo!
 
-### Executando com GUI (Recomendado para uso local)
+### Acessando o Hotsite
+
+1. Inicie o sistema com Docker:
+   ```bash
+   docker-compose up -d --build
+   ```
+
+2. Abra no navegador: **http://localhost:8081**
+
+### Funcionalidades do Hotsite
+
+- ✅ **Painel de Status**: Visualize estado da rede em tempo real
+- ✅ **Operações P2P**: Publique, busque e baixe arquivos
+- ✅ **Monitor de Peers**: Acompanhe peers ativos
+- ✅ **Integração com Grafana**: Acesso direto ao monitoramento
+- ✅ **Logs em Tempo Real**: Veja operações conforme acontecem
+- ✅ **API REST**: Gateway web na porta 8082
+
+📖 **Roteiro completo:** [APRESENTACAO.md](APRESENTACAO.md)
+
+## 🎨 Interface Gráfica Local (GUI)
+
+Além da interface web, o sistema possui uma **interface gráfica desktop** com tkinter!
+
+### Executando com GUI (Uso Local)
 
 **Windows (PowerShell):**
 ```powershell
@@ -490,6 +675,44 @@ docker rmi sistematcc_tracker sistematcc_peer1 sistematcc_peer2 sistematcc_peer3
 ### Peers não se comunicam
 - Verifique se estão na mesma rede Docker: `docker network inspect sistematcc_p2p_network`
 - Reinicie os containers
+
+### Hotsite não carrega (porta 8081)
+- Verifique se a porta está livre: `netstat -an | findstr 8081`
+- Aguarde alguns segundos após iniciar
+- Veja logs: `docker logs p2p_hotsite`
+
+### Grafana não conecta ao Prometheus
+- Aguarde ~30 segundos após iniciar o sistema
+- Verifique se Prometheus está ativo: http://localhost:9090
+- Veja logs: `docker logs grafana`
+
+### API retorna erro 500
+- Verifique se o tracker está ativo
+- Veja logs do gateway: `docker logs p2p_web_gateway`
+- Teste conexão: http://localhost:8082/api/status
+
+## 📚 Documentação Adicional
+
+Este projeto possui documentação completa e organizada:
+
+| Documento | Descrição |
+|-----------|-----------|
+| [QUICKSTART.md](QUICKSTART.md) | **Guia de início rápido** - Comece em 2 passos |
+| [APRESENTACAO.md](APRESENTACAO.md) | **Roteiro de apresentação** - Demonstração completa do sistema |
+| [GUI_GUIDE.md](GUI_GUIDE.md) | **Guia da GUI** - Interface gráfica desktop com tkinter |
+| [TESTE.md](TESTE.md) | **Guia de testes** - Testes detalhados de todas as funcionalidades |
+| [ARQUITETURA.md](ARQUITETURA.md) | **Arquitetura** - Diagramas e detalhes técnicos |
+| [CONFIGURACAO.md](CONFIGURACAO.md) | **Configuração** - Personalização e variáveis de ambiente |
+| [CHANGELOG.md](CHANGELOG.md) | **Histórico** - Log de mudanças do projeto |
+| [INDEX.md](INDEX.md) | **Índice** - Navegação completa da documentação |
+
+### 🎯 Por onde começar?
+
+1. **Primeiro uso?** → [QUICKSTART.md](QUICKSTART.md)
+2. **Apresentação/Demo?** → [APRESENTACAO.md](APRESENTACAO.md)
+3. **Interface gráfica?** → [GUI_GUIDE.md](GUI_GUIDE.md)
+4. **Testar tudo?** → [TESTE.md](TESTE.md)
+5. **Entender arquitetura?** → [ARQUITETURA.md](ARQUITETURA.md)
 
 ## 📄 Licença
 
