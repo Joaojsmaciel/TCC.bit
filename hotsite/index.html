@@ -370,8 +370,28 @@
 
           <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
-              <h3 class="font-bold text-white">Peers da Rede</h3>
-              <div id="peerCards" class="mt-4 grid gap-3"></div>
+              <h3 class="font-bold text-white">Componentes do Sistema</h3>
+              
+              <!-- Status do Tracker -->
+              <div class="mt-4 rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="font-mono text-sm font-semibold text-emerald-300">TRACKER (Servidor Central)</div>
+                    <div class="mt-1 text-xs text-slate-400" id="trackerAddress">tracker:5000</div>
+                  </div>
+                  <span id="trackerStatus" class="rounded-full border border-emerald-400/40 px-2 py-1 font-mono text-[10px] uppercase text-emerald-300">ONLINE</span>
+                </div>
+                <div class="mt-3 flex gap-4 text-xs text-slate-400">
+                  <div>Peers: <span class="font-mono text-slate-200" id="trackerPeerCount">0</span></div>
+                  <div>Arquivos: <span class="font-mono text-slate-200" id="trackerFileCount">0</span></div>
+                </div>
+              </div>
+
+              <!-- Peers da Rede -->
+              <div class="mt-4">
+                <div class="mb-2 text-sm font-semibold text-slate-400">Peers Ativos</div>
+                <div id="peerCards" class="grid gap-3"></div>
+              </div>
             </div>
 
             <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
@@ -885,6 +905,10 @@
     const activePeersCount = document.getElementById("activePeersCount");
     const trackerFilesCount = document.getElementById("trackerFilesCount");
     const replicaHealth = document.getElementById("replicaHealth");
+    const trackerStatus = document.getElementById("trackerStatus");
+    const trackerPeerCount = document.getElementById("trackerPeerCount");
+    const trackerFileCount = document.getElementById("trackerFileCount");
+    const trackerAddress = document.getElementById("trackerAddress");
     let typingTimer = null;
 
     function escapeHtml(value) {
@@ -968,6 +992,7 @@
           const replicas = Number(file.replicas ?? file.peer_count ?? 0);
           const peers = Array.isArray(file.peers) ? file.peers.join(", ") : (replicas ? replicas + " peer(s)" : "sem peer ativo");
           const safe = replicas >= 2;
+          
           return [
             '<tr>',
             '<td class="px-3 py-4"><div class="font-semibold text-white">' + escapeHtml(file.filename) + '</div><div class="mt-1 text-xs text-slate-500">' + escapeHtml(formatBytes(file.size)) + '</div></td>',
@@ -1004,6 +1029,13 @@
         state.localFiles = local.files || [];
 
         activePeersCount.textContent = state.peers.length;
+        
+        // Atualizar status do Tracker
+        trackerPeerCount.textContent = state.peers.length;
+        trackerFileCount.textContent = state.networkFiles.length;
+        trackerStatus.textContent = "ONLINE";
+        trackerStatus.className = "rounded-full border border-emerald-400/40 px-2 py-1 font-mono text-[10px] uppercase text-emerald-300";
+        
         renderPeers();
         renderFiles();
 
@@ -1013,6 +1045,9 @@
         }
       } catch (error) {
         logOperation("Gateway indisponível: " + error.message, "error");
+        // Atualizar status do Tracker como offline
+        trackerStatus.textContent = "OFFLINE";
+        trackerStatus.className = "rounded-full border border-red-400/40 px-2 py-1 font-mono text-[10px] uppercase text-red-300";
       }
     }
 
@@ -1079,22 +1114,40 @@
 
     async function downloadFile(filename, hash) {
       if (!filename) return;
+      
       payloads.DOWNLOAD.payload.hash = hash || "<hash>";
       payloads.DOWNLOAD.payload.peer = "selecionado pelo backend";
       payloads.DOWNLOAD.commandLine = "DOWNLOAD " + shortHash(hash || "<hash>") + " <peer>";
       typePayload("DOWNLOAD");
-      logOperation("DOWNLOAD -> solicitando " + filename + " ao peer web-ui.", "tcp");
+      logOperation("DOWNLOAD -> solicitando '" + filename + "'...", "tcp");
 
       try {
-        await api("/download", {
+        const result = await api("/download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ filename })
         });
-        logOperation("DOWNLOAD concluído e validado pelo backend: " + filename + ".", "success");
+        
+        // Download realizado com sucesso
+        logOperation("DOWNLOAD -> ✓ Arquivo recebido via TCP de peer remoto.", "success");
+        logOperation("DOWNLOAD -> ✓ Hash SHA256 validado: " + shortHash(hash || result.file?.hash || "N/A"), "success");
+        logOperation("DOWNLOAD -> ✓ Arquivo '" + filename + "' salvo e publicado no Tracker.", "success");
+        
+        // Baixar arquivo para a pasta Downloads do navegador
+        logOperation("DOWNLOAD -> ⬇ Transferindo para sua pasta Downloads...", "info");
+        const downloadUrl = "http://localhost:8082/api/file?filename=" + encodeURIComponent(filename);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        logOperation("DOWNLOAD -> ✓ Arquivo salvo na pasta Downloads!", "success");
+        
         await refreshAll(true);
       } catch (error) {
-        logOperation("DOWNLOAD falhou: " + error.message, "error");
+        logOperation("DOWNLOAD -> ✗ FALHA: " + error.message, "error");
+        logOperation("DOWNLOAD -> Possíveis causas: nenhum peer ativo possui o arquivo, erro de rede.", "warn");
       }
     }
 

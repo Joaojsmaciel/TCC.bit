@@ -168,19 +168,26 @@ class Peer:
         file_hash = request.get('hash')
         filename = request.get('filename')
 
+        print(f"[PEER SERVER] Download request: hash={file_hash}, filename={filename}")
+
         if file_hash:
             stored_filename, info = self.file_manager.get_file_by_hash(file_hash)
             filename = stored_filename or filename
+            print(f"[PEER SERVER] Found by hash: filename={filename}, info={info}")
         else:
             info = self.file_manager.get_file_info(filename)
+            print(f"[PEER SERVER] Found by name: info={info}")
 
         if not filename or not info or not self.file_manager.has_file(filename):
+            print(f"[PEER SERVER] File not found: filename={filename}, info={info}, has={self.file_manager.has_file(filename) if filename else False}")
             response = {'status': 'error', 'message': 'Arquivo não encontrado'}
             NetworkManager.send_json(client_socket, response)
             return
         
         file_path = self.file_manager.get_file_path(filename)
         file_size = self.file_manager.get_file_size(filename)
+        
+        print(f"[PEER SERVER] File ready: path={file_path}, size={file_size}")
         
         # Enviar resposta inicial
         response = {
@@ -349,22 +356,28 @@ class Peer:
     
     def download_file(self, filename):
         """Baixa um arquivo da rede"""
-        # Verificar se já possui o arquivo
-        if self.file_manager.has_file(filename):
-            self.ui.print_info("Você já possui este arquivo")
-            return False
-        
         # Buscar peers que têm o arquivo
         response = self.network.whereis_file(filename)
         
         if response.get('status') != 'success':
-            self.ui.print_error(f"Arquivo não encontrado: {response.get('message')}")
+            error_msg = response.get('message', 'Erro desconhecido')
+            self.ui.print_error(f"Arquivo não encontrado: {error_msg}")
+            print(f"[PEER] WHEREIS falhou: {error_msg}")
             return False
         
         peers = response.get('peers', [])
         
         if not peers:
             self.ui.print_error("Nenhum peer disponível com este arquivo")
+            print(f"[PEER] Download falhou: nenhum peer ativo possui '{filename}'")
+            return False
+        
+        # Filtrar o próprio peer da lista (para permitir re-download de outros peers)
+        peers = [p for p in peers if p.get('peer_id') != self.peer_id]
+        
+        if not peers:
+            self.ui.print_error("Apenas você possui este arquivo (sem outros peers disponíveis)")
+            print(f"[PEER] Download falhou: apenas o proprio peer possui '{filename}'")
             return False
         
         # Selecionar melhor peer
@@ -372,6 +385,7 @@ class Peer:
         
         if not selected_peer:
             self.ui.print_error("Erro ao selecionar peer")
+            print(f"[PEER] Download falhou: erro ao selecionar peer de {len(peers)} disponiveis")
             return False
         
         peer_ip = selected_peer['ip']
@@ -381,8 +395,10 @@ class Peer:
 
         if not file_hash:
             self.ui.print_error("Tracker nao informou hash do arquivo")
+            print(f"[PEER] Download falhou: tracker nao retornou hash")
             return False
         
+        print(f"[PEER] Iniciando download de '{filename}' de {peer_id} ({peer_ip}:{peer_port})")
         self.ui.print_info(f"Baixando de {peer_id} ({peer_ip}:{peer_port})")
         
         # Download do arquivo
@@ -401,21 +417,26 @@ class Peer:
             if os.path.exists(save_path):
                 os.remove(save_path)
             self.ui.print_error(f"Erro ao baixar arquivo: {message}")
+            print(f"[PEER] Download falhou: {message}")
             return False
 
+        print(f"[PEER] Arquivo recebido, validando hash...")
         valid_hash, calculated_hash = self.file_manager.verify_file_hash(save_path, file_hash)
         if not valid_hash:
             if os.path.exists(save_path):
                 os.remove(save_path)
             self.ui.print_error(f"Hash invalido apos download: esperado {file_hash}, obtido {calculated_hash}")
+            print(f"[PEER] Download falhou: hash invalido")
             return False
         
+        print(f"[PEER] Hash validado, registrando arquivo...")
         # Registrar arquivo localmente
         self.file_manager.add_file(save_path, filename)
         
         # Publicar no tracker
         file_info = self.file_manager.get_file_info(filename)
         if file_info:
+            print(f"[PEER] Publicando no tracker...")
             self.network.publish_file(self.peer_id, filename, file_info['hash'])
         
         self.ui.print_success(f"Arquivo '{filename}' baixado com sucesso!")
