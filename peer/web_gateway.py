@@ -96,6 +96,14 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/peers":
                 self.send_json(200, peer.network.list_peers())
                 return
+            
+            if parsed.path == "/api/peer/details":
+                peer_id = query.get("peer_id", [""])[0]
+                if not peer_id:
+                    self.send_json(400, response_payload("error", message="peer_id obrigatorio"))
+                    return
+                self.send_json(200, peer.network.get_peer_details(peer_id))
+                return
 
             if parsed.path == "/api/search":
                 term = query.get("term", [""])[0]
@@ -158,6 +166,103 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
             if parsed.path == "/api/unregister":
                 self.send_json(200, peer.network.unregister_peer(peer.peer_id))
+                return
+            
+            if parsed.path == "/api/peer/add":
+                payload = self.read_json()
+                peer_id = payload.get("peer_id", "")
+                ip = payload.get("ip", "")
+                port = payload.get("port")
+                
+                if not peer_id or not ip or not port:
+                    self.send_json(400, response_payload("error", message="peer_id, ip e port obrigatorios"))
+                    return
+                
+                try:
+                    port = int(port)
+                    response = peer.network.add_peer_manual(peer_id, ip, port)
+                    self.send_json(200 if response.get("status") == "success" else 400, response)
+                except ValueError:
+                    self.send_json(400, response_payload("error", message="Porta invalida"))
+                return
+            
+            if parsed.path == "/api/peer/remove":
+                payload = self.read_json()
+                peer_id = payload.get("peer_id", "")
+                
+                if not peer_id:
+                    self.send_json(400, response_payload("error", message="peer_id obrigatorio"))
+                    return
+                
+                response = peer.network.remove_peer_admin(peer_id)
+                self.send_json(200 if response.get("status") == "success" else 400, response)
+                return
+            
+            if parsed.path == "/api/peer/edit":
+                payload = self.read_json()
+                peer_id = payload.get("peer_id", "")
+                new_ip = payload.get("new_ip")
+                new_port = payload.get("new_port")
+                
+                if not peer_id:
+                    self.send_json(400, response_payload("error", message="peer_id obrigatorio"))
+                    return
+                
+                try:
+                    port_val = int(new_port) if new_port else None
+                    response = peer.network.edit_peer(peer_id, new_ip if new_ip else None, port_val)
+                    self.send_json(200 if response.get("status") == "success" else 400, response)
+                except ValueError:
+                    self.send_json(400, response_payload("error", message="Porta invalida"))
+                return
+            
+            if parsed.path == "/api/file/delete":
+                payload = self.read_json()
+                filename = payload.get("filename", "")
+                
+                if not filename:
+                    self.send_json(400, response_payload("error", message="filename obrigatorio"))
+                    return
+                
+                with operation_lock:
+                    success, message = peer.file_manager.remove_file(filename)
+                
+                if success:
+                    self.send_json(200, response_payload("success", message=f"Arquivo {filename} excluido com sucesso"))
+                else:
+                    self.send_json(404, response_payload("error", message=message))
+                return
+            
+            if parsed.path == "/api/file/republish":
+                payload = self.read_json()
+                filename = payload.get("filename", "")
+                
+                if not filename:
+                    self.send_json(400, response_payload("error", message="filename obrigatorio"))
+                    return
+                
+                file_info = peer.file_manager.get_file_info(filename)
+                if not file_info:
+                    self.send_json(404, response_payload("error", message="Arquivo nao encontrado"))
+                    return
+                
+                file_hash = file_info.get('hash')
+                
+                # Publicar no tracker
+                with operation_lock:
+                    response = peer.network.publish_file(peer.peer_id, filename, file_hash)
+                
+                if response.get('status') == 'success':
+                    # Iniciar replicacao em background
+                    threading.Thread(
+                        target=peer.replication.replicate_file,
+                        args=(filename, file_hash),
+                        daemon=True
+                    ).start()
+                    
+                    self.send_json(200, response_payload("success", message=f"Arquivo {filename} republicado e replicacao iniciada"))
+                else:
+                    self.send_json(502, response_payload("error", message=response.get('message', 'Falha ao republicar')))
                 return
 
             self.send_json(404, response_payload("error", message="Endpoint nao encontrado"))

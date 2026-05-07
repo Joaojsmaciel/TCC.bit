@@ -2,6 +2,54 @@
 
 Histórico de versões e mudanças do Sistema P2P.
 
+## [2.1.0] - 2026-05-06
+
+### 🔧 Correções Críticas
+
+#### Replicação de Arquivos Locais ao Reiniciar
+- ✅ **Problema corrigido:** Arquivos locais não eram replicados ao reiniciar o sistema
+- ✅ Adicionado método `republish_local_files()` ao Peer
+- ✅ Re-anúncio automático de arquivos existentes na inicialização
+- ✅ Replicação automática reiniciada para arquivos locais
+- ✅ Persistência de estado entre reinicializações
+- ✅ Operação transparente e automática
+
+**Impacto:** Arquivos armazenados localmente agora são automaticamente re-publicados no tracker e replicados quando o peer reinicia, eliminando a necessidade de re-upload manual.
+
+**Detalhes:** Ver [CORRECAO_REPLICACAO.md](CORRECAO_REPLICACAO.md)
+
+### 🎨 Melhorias na Interface Web
+
+#### Gerenciamento de Peers via Web
+- ✅ Painel administrativo completo na interface web
+- ✅ **Adicionar Peer:** Registro manual com ID, IP e porta
+- ✅ **Editar Peer:** Atualização de IP/porta de peers existentes
+- ✅ **Remover Peer:** Exclusão administrativa com confirmação
+- ✅ **Ver Detalhes:** Consulta completa incluindo arquivos compartilhados
+- ✅ Interface expansível/recolhível
+- ✅ Feedback visual em tempo real (cores semânticas)
+- ✅ Validação de entrada client-side e server-side
+- ✅ Log integrado de operações
+- ✅ Design responsivo (desktop/tablet/mobile)
+
+**Novos Endpoints API:**
+- `POST /api/peer/add` - Adicionar peer
+- `POST /api/peer/edit` - Editar peer
+- `POST /api/peer/remove` - Remover peer
+- `GET /api/peer/details` - Ver detalhes
+
+**Documentação:** Ver [GERENCIAMENTO_WEB.md](GERENCIAMENTO_WEB.md)
+
+### 📖 Documentação Adicionada
+- ✅ [CORRECAO_REPLICACAO.md](CORRECAO_REPLICACAO.md) - Documentação da correção de replicação
+- ✅ [GERENCIAMENTO_WEB.md](GERENCIAMENTO_WEB.md) - Guia completo da interface web
+- ✅ [GERENCIAMENTO_PEERS.md](GERENCIAMENTO_PEERS.md) - Guia da CLI de gerenciamento
+- ✅ [GERENCIAMENTO_PEERS_RESUMO.md](GERENCIAMENTO_PEERS_RESUMO.md) - Resumo executivo
+- ✅ [ANALISE_REQUISITOS.md](ANALISE_REQUISITOS.md) - Análise de conformidade (94%)
+- ✅ [RELATORIO_TECNICO.md](RELATORIO_TECNICO.md) - Relatório técnico atualizado
+
+---
+
 ## [2.0.0] - 2026-05-02
 
 ### 🎨 Nova Interface Gráfica (GUI)

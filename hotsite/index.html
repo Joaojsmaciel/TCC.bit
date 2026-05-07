@@ -317,6 +317,73 @@
             </div>
           </div>
 
+          <!-- NOVA SEÇÃO: Gerenciamento de Peers -->
+          <div class="rounded-lg border border-purple-700/60 bg-purple-950/30 p-4">
+            <div class="mb-4 flex items-center justify-between">
+              <div>
+                <h3 class="font-bold text-white">🔧 Gerenciamento de Peers</h3>
+                <p class="mt-1 text-sm text-purple-300">Administração completa da rede</p>
+              </div>
+              <button id="togglePeerManagement" class="rounded-lg border border-purple-400/40 bg-purple-500/20 px-3 py-2 font-mono text-xs font-semibold text-purple-200 transition hover:bg-purple-500/30">
+                EXPANDIR
+              </button>
+            </div>
+            
+            <div id="peerManagementPanel" class="hidden space-y-4">
+              <!-- Adicionar Peer -->
+              <div class="rounded-lg border border-emerald-600/40 bg-emerald-950/30 p-3">
+                <h4 class="font-mono text-xs font-semibold uppercase text-emerald-300">Adicionar Peer</h4>
+                <div class="mt-3 grid gap-2 sm:grid-cols-3">
+                  <input id="addPeerId" type="text" placeholder="Peer ID" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+                  <input id="addPeerIp" type="text" placeholder="IP" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+                  <input id="addPeerPort" type="number" placeholder="Porta" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+                </div>
+                <button id="addPeerButton" class="mt-2 w-full rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-4 py-2 font-mono text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30">
+                  + Adicionar Peer
+                </button>
+                <div id="addPeerMessage" class="mt-2 min-h-5 font-mono text-xs"></div>
+              </div>
+
+              <!-- Editar Peer -->
+              <div class="rounded-lg border border-blue-600/40 bg-blue-950/30 p-3">
+                <h4 class="font-mono text-xs font-semibold uppercase text-blue-300">Editar Peer</h4>
+                <div class="mt-3 grid gap-2 sm:grid-cols-3">
+                  <input id="editPeerId" type="text" placeholder="Peer ID" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400" />
+                  <input id="editPeerIp" type="text" placeholder="Novo IP (opcional)" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400" />
+                  <input id="editPeerPort" type="number" placeholder="Nova Porta (opcional)" class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400" />
+                </div>
+                <button id="editPeerButton" class="mt-2 w-full rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 font-mono text-sm font-semibold text-blue-200 transition hover:bg-blue-500/30">
+                  ✏️ Editar Peer
+                </button>
+                <div id="editPeerMessage" class="mt-2 min-h-5 font-mono text-xs"></div>
+              </div>
+
+              <!-- Remover Peer -->
+              <div class="rounded-lg border border-red-600/40 bg-red-950/30 p-3">
+                <h4 class="font-mono text-xs font-semibold uppercase text-red-300">Remover Peer</h4>
+                <div class="mt-3 flex gap-2">
+                  <input id="removePeerId" type="text" placeholder="Peer ID a remover" class="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-red-400" />
+                  <button id="removePeerButton" class="rounded-lg border border-red-400/40 bg-red-500/20 px-4 py-2 font-mono text-sm font-semibold text-red-200 transition hover:bg-red-500/30">
+                    🗑️ Remover
+                  </button>
+                </div>
+                <div id="removePeerMessage" class="mt-2 min-h-5 font-mono text-xs"></div>
+              </div>
+
+              <!-- Detalhes do Peer -->
+              <div class="rounded-lg border border-cyan-600/40 bg-cyan-950/30 p-3">
+                <h4 class="font-mono text-xs font-semibold uppercase text-cyan-300">Ver Detalhes</h4>
+                <div class="mt-3 flex gap-2">
+                  <input id="detailsPeerId" type="text" placeholder="Peer ID" class="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400" />
+                  <button id="detailsPeerButton" class="rounded-lg border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 font-mono text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/30">
+                    🔍 Ver Detalhes
+                  </button>
+                </div>
+                <div id="peerDetailsDisplay" class="mt-3 hidden rounded-lg border border-slate-700 bg-slate-900/70 p-3 font-mono text-xs text-slate-300"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
             <div class="grid grid-cols-3 gap-3 text-center">
               <div class="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
@@ -982,16 +1049,24 @@
       });
     }
 
-    function renderFiles(files = state.networkFiles) {
+    function renderFiles(files = state.networkFiles, isLocal = false) {
       trackerFilesCount.textContent = state.networkFiles.length;
 
       if (!files.length) {
-        fileRows.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo encontrado no Tracker.</td></tr>';
+        fileRows.innerHTML = '<tr><td colspan="' + (isLocal ? '6' : '5') + '" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo encontrado' + (isLocal ? ' localmente' : ' no Tracker') + '.</td></tr>';
       } else {
         fileRows.innerHTML = files.map((file) => {
           const replicas = Number(file.replicas ?? file.peer_count ?? 0);
           const peers = Array.isArray(file.peers) ? file.peers.join(", ") : (replicas ? replicas + " peer(s)" : "sem peer ativo");
           const safe = replicas >= 2;
+          
+          const actionButtons = isLocal ? [
+            '<div class="flex gap-2">',
+            '<button data-filename="' + escapeHtml(file.filename) + '" data-hash="' + escapeHtml(file.hash || "") + '" class="download-btn rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20">DOWNLOAD</button>',
+            '<button data-filename="' + escapeHtml(file.filename) + '" class="republish-btn rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20" title="Forçar republicação">♻️</button>',
+            '<button data-filename="' + escapeHtml(file.filename) + '" class="delete-btn rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-red-200 transition hover:bg-red-500/20" title="Excluir arquivo">🗑️</button>',
+            '</div>'
+          ].join("") : '<button data-filename="' + escapeHtml(file.filename) + '" data-hash="' + escapeHtml(file.hash || "") + '" class="download-btn rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-2 font-mono text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20">DOWNLOAD</button>';
           
           return [
             '<tr>',
@@ -999,7 +1074,7 @@
             '<td class="px-3 py-4 font-mono text-xs text-blue-300">' + escapeHtml(shortHash(file.hash)) + '</td>',
             '<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 font-mono text-xs ' + (safe ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300") + '">' + replicas + '/2</span></td>',
             '<td class="px-3 py-4 font-mono text-xs text-slate-300">' + escapeHtml(peers) + '</td>',
-            '<td class="px-3 py-4"><button data-filename="' + escapeHtml(file.filename) + '" data-hash="' + escapeHtml(file.hash || "") + '" class="download-btn rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-2 font-mono text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20">DOWNLOAD</button></td>',
+            '<td class="px-3 py-4">' + actionButtons + '</td>',
             '</tr>'
           ].join("");
         }).join("");
@@ -1012,6 +1087,16 @@
       document.querySelectorAll(".download-btn").forEach((button) => {
         button.addEventListener("click", () => downloadFile(button.dataset.filename, button.dataset.hash));
       });
+      
+      if (isLocal) {
+        document.querySelectorAll(".republish-btn").forEach((button) => {
+          button.addEventListener("click", () => republishFile(button.dataset.filename));
+        });
+        
+        document.querySelectorAll(".delete-btn").forEach((button) => {
+          button.addEventListener("click", () => deleteFile(button.dataset.filename));
+        });
+      }
     }
 
     async function refreshAll(silent = false) {
@@ -1168,10 +1253,42 @@
       try {
         const result = await api("/files/local");
         state.localFiles = result.files || [];
-        renderFiles(state.localFiles.map((file) => ({ ...file, replicas: 1, peers: [state.status ? state.status.peer_id : "web-ui"] })));
+        renderFiles(state.localFiles.map((file) => ({ ...file, replicas: 1, peers: [state.status ? state.status.peer_id : "web-ui"] })), true);
         logOperation("LIST_LOCAL -> " + state.localFiles.length + " arquivo(s) no storage do peer web-ui.", "success");
       } catch (error) {
         logOperation("LIST_LOCAL falhou: " + error.message, "error");
+      }
+    }
+    
+    async function deleteFile(filename) {
+      if (!confirm("Tem certeza que deseja excluir o arquivo '" + filename + "'?\n\nEsta ação é irreversível!")) {
+        return;
+      }
+      
+      try {
+        await api("/file/delete", {
+          method: "POST",
+          body: JSON.stringify({ filename: filename })
+        });
+        logOperation("DELETE -> Arquivo '" + filename + "' excluido com sucesso.", "success");
+        await listLocalFiles();
+        await refreshAll(true);
+      } catch (error) {
+        logOperation("DELETE falhou: " + error.message, "error");
+      }
+    }
+    
+    async function republishFile(filename) {
+      try {
+        logOperation("REPUBLISH -> Forçando republicação de '" + filename + "'...", "tcp");
+        await api("/file/republish", {
+          method: "POST",
+          body: JSON.stringify({ filename: filename })
+        });
+        logOperation("REPUBLISH -> Arquivo '" + filename + "' republicado e replicação reiniciada.", "success");
+        await refreshAll(true);
+      } catch (error) {
+        logOperation("REPUBLISH falhou: " + error.message, "error");
       }
     }
 
@@ -1234,6 +1351,200 @@
     heartbeatButton.addEventListener("click", showStatus);
     simulateFailureButton.addEventListener("click", listLocalFiles);
     resetDemoButton.addEventListener("click", listPeers);
+
+    // Event listeners para gerenciamento de peers
+    const togglePeerManagement = document.getElementById("togglePeerManagement");
+    const peerManagementPanel = document.getElementById("peerManagementPanel");
+    const addPeerButton = document.getElementById("addPeerButton");
+    const editPeerButton = document.getElementById("editPeerButton");
+    const removePeerButton = document.getElementById("removePeerButton");
+    const detailsPeerButton = document.getElementById("detailsPeerButton");
+
+    togglePeerManagement.addEventListener("click", () => {
+      peerManagementPanel.classList.toggle("hidden");
+      togglePeerManagement.textContent = peerManagementPanel.classList.contains("hidden") ? "EXPANDIR" : "RECOLHER";
+    });
+
+    addPeerButton.addEventListener("click", async () => {
+      const peer_id = document.getElementById("addPeerId").value.trim();
+      const ip = document.getElementById("addPeerIp").value.trim();
+      const port = document.getElementById("addPeerPort").value.trim();
+      const msgEl = document.getElementById("addPeerMessage");
+
+      if (!peer_id || !ip || !port) {
+        msgEl.textContent = "❌ Preencha todos os campos";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        return;
+      }
+
+      try {
+        msgEl.textContent = "⏳ Adicionando peer...";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-yellow-300";
+        
+        const response = await api("/peer/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ peer_id, ip, port: parseInt(port) })
+        });
+
+        msgEl.textContent = "✅ " + (response.message || "Peer adicionado com sucesso");
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-emerald-300";
+        logOperation("Peer " + peer_id + " adicionado", "success");
+        
+        // Limpar campos
+        document.getElementById("addPeerId").value = "";
+        document.getElementById("addPeerIp").value = "";
+        document.getElementById("addPeerPort").value = "";
+        
+        // Atualizar lista de peers
+        await refreshAll(true);
+      } catch (error) {
+        msgEl.textContent = "❌ " + error.message;
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        logOperation("Erro ao adicionar peer: " + error.message, "error");
+      }
+    });
+
+    editPeerButton.addEventListener("click", async () => {
+      const peer_id = document.getElementById("editPeerId").value.trim();
+      const new_ip = document.getElementById("editPeerIp").value.trim();
+      const new_port = document.getElementById("editPeerPort").value.trim();
+      const msgEl = document.getElementById("editPeerMessage");
+
+      if (!peer_id) {
+        msgEl.textContent = "❌ Informe o Peer ID";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        return;
+      }
+
+      if (!new_ip && !new_port) {
+        msgEl.textContent = "❌ Informe pelo menos IP ou Porta para atualizar";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-yellow-300";
+        return;
+      }
+
+      try {
+        msgEl.textContent = "⏳ Editando peer...";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-yellow-300";
+        
+        const payload = { peer_id };
+        if (new_ip) payload.new_ip = new_ip;
+        if (new_port) payload.new_port = parseInt(new_port);
+
+        const response = await api("/peer/edit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        msgEl.textContent = "✅ " + (response.message || "Peer atualizado com sucesso");
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-emerald-300";
+        logOperation("Peer " + peer_id + " editado", "success");
+        
+        // Limpar campos
+        document.getElementById("editPeerId").value = "";
+        document.getElementById("editPeerIp").value = "";
+        document.getElementById("editPeerPort").value = "";
+        
+        // Atualizar lista de peers
+        await refreshAll(true);
+      } catch (error) {
+        msgEl.textContent = "❌ " + error.message;
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        logOperation("Erro ao editar peer: " + error.message, "error");
+      }
+    });
+
+    removePeerButton.addEventListener("click", async () => {
+      const peer_id = document.getElementById("removePeerId").value.trim();
+      const msgEl = document.getElementById("removePeerMessage");
+
+      if (!peer_id) {
+        msgEl.textContent = "❌ Informe o Peer ID";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        return;
+      }
+
+      if (!confirm("Confirma remoção do peer '" + peer_id + "'?")) {
+        return;
+      }
+
+      try {
+        msgEl.textContent = "⏳ Removendo peer...";
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-yellow-300";
+        
+        const response = await api("/peer/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ peer_id })
+        });
+
+        msgEl.textContent = "✅ " + (response.message || "Peer removido com sucesso");
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-emerald-300";
+        logOperation("Peer " + peer_id + " removido", "success");
+        
+        // Limpar campo
+        document.getElementById("removePeerId").value = "";
+        
+        // Atualizar lista de peers
+        await refreshAll(true);
+      } catch (error) {
+        msgEl.textContent = "❌ " + error.message;
+        msgEl.className = "mt-2 min-h-5 font-mono text-xs text-red-300";
+        logOperation("Erro ao remover peer: " + error.message, "error");
+      }
+    });
+
+    detailsPeerButton.addEventListener("click", async () => {
+      const peer_id = document.getElementById("detailsPeerId").value.trim();
+      const displayEl = document.getElementById("peerDetailsDisplay");
+
+      if (!peer_id) {
+        displayEl.textContent = "❌ Informe o Peer ID";
+        displayEl.className = "mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3 font-mono text-xs text-red-300";
+        displayEl.classList.remove("hidden");
+        return;
+      }
+
+      try {
+        const response = await api("/peer/details?peer_id=" + encodeURIComponent(peer_id));
+        
+        if (response.status === "success" && response.peer) {
+          const peer = response.peer;
+          const files = peer.files || [];
+          
+          let html = '<div class="space-y-2">';
+          html += '<div><span class="text-slate-500">Peer ID:</span> <span class="text-white">' + escapeHtml(peer.peer_id) + '</span></div>';
+          html += '<div><span class="text-slate-500">IP:</span> <span class="text-emerald-300">' + escapeHtml(peer.ip) + '</span></div>';
+          html += '<div><span class="text-slate-500">Porta:</span> <span class="text-blue-300">' + peer.port + '</span></div>';
+          if (peer.last_heartbeat) {
+            html += '<div><span class="text-slate-500">Último Heartbeat:</span> <span class="text-cyan-300">' + escapeHtml(peer.last_heartbeat) + '</span></div>';
+          }
+          html += '<div class="pt-2 border-t border-slate-700"><span class="text-slate-500">Arquivos (' + files.length + '):</span></div>';
+          
+          if (files.length > 0) {
+            html += '<ul class="space-y-1 pl-4">';
+            files.forEach(f => {
+              html += '<li class="text-xs">📄 ' + escapeHtml(f.filename) + ' <span class="text-slate-600">(' + escapeHtml(f.hash.substring(0, 16)) + '...)</span></li>';
+            });
+            html += '</ul>';
+          } else {
+            html += '<div class="text-xs text-slate-600 pl-4">Nenhum arquivo compartilhado</div>';
+          }
+          html += '</div>';
+          
+          displayEl.innerHTML = html;
+          displayEl.className = "mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3 font-mono text-xs text-slate-300";
+          displayEl.classList.remove("hidden");
+          logOperation("Detalhes de " + peer_id + " carregados", "info");
+        }
+      } catch (error) {
+        displayEl.textContent = "❌ " + error.message;
+        displayEl.className = "mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3 font-mono text-xs text-red-300";
+        displayEl.classList.remove("hidden");
+        logOperation("Erro ao buscar detalhes: " + error.message, "error");
+      }
+    });
 
     window.addEventListener("DOMContentLoaded", async () => {
       logOperation("Conectando ao gateway HTTP em " + API_BASE + "...", "tcp");

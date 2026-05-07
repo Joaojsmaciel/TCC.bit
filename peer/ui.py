@@ -32,6 +32,7 @@ class CLI:
         print("│  5. Listar todos os arquivos da rede (list_all)     │")
         print("│  6. Listar peers ativos (list_peers)                │")
         print("│  7. Status do sistema                               │")
+        print("│  8. Gerenciar Peers (Admin)                         │")
         print("│  0. Sair (exit)                                     │")
         print("└─────────────────────────────────────────────────────┘")
     
@@ -96,6 +97,36 @@ class CLI:
             print(f"│{idx:3d}│ {peer_id:19} │ {peer_ip:17} │ {peer_port:12} │")
         
         print("└───┴─────────────────────┴───────────────────┴──────────────┘")
+    
+    def print_peer_management_menu(self):
+        """Exibe menu de gerenciamento de peers"""
+        print("\n┌─────────────────────────────────────────────────────┐")
+        print("│              GERENCIAMENTO DE PEERS                 │")
+        print("├─────────────────────────────────────────────────────┤")
+        print("│  1. Listar todos os peers                           │")
+        print("│  2. Adicionar peer manualmente                      │")
+        print("│  3. Remover peer                                    │")
+        print("│  4. Editar informações do peer                      │")
+        print("│  5. Ver detalhes de um peer                         │")
+        print("│  0. Voltar ao menu principal                        │")
+        print("└─────────────────────────────────────────────────────┘")
+    
+    def print_peer_details(self, peer_info):
+        """Exibe detalhes completos de um peer"""
+        print("\n┌─────────────────────────────────────────────────────┐")
+        print("│              DETALHES DO PEER                       │")
+        print("├─────────────────────────────────────────────────────┤")
+        print(f"│  Peer ID: {peer_info.get('peer_id', 'N/A'):37} │")
+        print(f"│  IP: {peer_info.get('ip', 'N/A'):46} │")
+        print(f"│  Porta: {str(peer_info.get('port', 'N/A')):44} │")
+        
+        if 'last_heartbeat' in peer_info:
+            print(f"│  Último Heartbeat: {peer_info['last_heartbeat'][:19]:29} │")
+        
+        if 'files' in peer_info:
+            print(f"│  Arquivos: {len(peer_info['files']):40} │")
+        
+        print("└─────────────────────────────────────────────────────┘")
     
     def print_progress_bar(self, current, total, bar_length=40):
         """Exibe barra de progresso"""

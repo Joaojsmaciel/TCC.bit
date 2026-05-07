@@ -92,8 +92,42 @@ class Peer:
         # Iniciar heartbeat
         self.heartbeat.start()
         
+        # Re-anunciar arquivos locais existentes
+        self.republish_local_files()
+        
         print(f"[PEER] Peer iniciado com sucesso!")
         return True
+    
+    def republish_local_files(self):
+        """Re-anuncia arquivos locais existentes no tracker ao iniciar"""
+        local_files = self.file_manager.list_files()
+        
+        if not local_files:
+            print(f"[PEER] Nenhum arquivo local encontrado para re-anunciar")
+            return
+        
+        print(f"[PEER] Re-anunciando {len(local_files)} arquivo(s) local(is)...")
+        
+        for file_info in local_files:
+            filename = file_info['filename']
+            file_hash = file_info['hash']
+            
+            # Publicar no tracker
+            response = self.network.publish_file(self.peer_id, filename, file_hash)
+            
+            if response.get('status') == 'success':
+                print(f"[PEER]   ✓ {filename} (hash: {file_hash[:16]}...)")
+                
+                # Iniciar replicação em background
+                threading.Thread(
+                    target=self.replication.replicate_file,
+                    args=(filename, file_hash),
+                    daemon=True
+                ).start()
+            else:
+                print(f"[PEER]   ✗ Erro ao publicar {filename}: {response.get('message')}")
+        
+        print(f"[PEER] Re-anúncio de arquivos locais concluído")
     
     def stop(self):
         """Para o peer"""
@@ -443,6 +477,107 @@ class Peer:
         
         return True
     
+    def manage_peers_menu(self):
+        """Menu de gerenciamento de peers"""
+        while True:
+            self.ui.print_peer_management_menu()
+            choice = self.ui.get_input("Escolha uma opção")
+            
+            if choice == '1':
+                # Listar todos os peers
+                response = self.network.list_peers()
+                if response.get('status') == 'success':
+                    peers = response.get('peers', [])
+                    self.ui.print_peers_table(peers)
+                else:
+                    self.ui.print_error("Erro ao obter lista de peers")
+                self.ui.wait_for_enter()
+            
+            elif choice == '2':
+                # Adicionar peer manualmente
+                self.ui.print_info("Adicionar Novo Peer")
+                peer_id = self.ui.get_input("ID do Peer")
+                ip = self.ui.get_input("IP do Peer")
+                port = self.ui.get_input("Porta do Peer")
+                
+                try:
+                    port = int(port)
+                    response = self.network.add_peer_manual(peer_id, ip, port)
+                    if response.get('status') == 'success':
+                        self.ui.print_success(response.get('message', 'Peer adicionado'))
+                    else:
+                        self.ui.print_error(response.get('message', 'Erro ao adicionar peer'))
+                except ValueError:
+                    self.ui.print_error("Porta inválida")
+                
+                self.ui.wait_for_enter()
+            
+            elif choice == '3':
+                # Remover peer
+                peer_id = self.ui.get_input("ID do Peer a remover")
+                
+                if self.ui.confirm_action(f"Confirma remoção do peer '{peer_id}'?"):
+                    response = self.network.remove_peer_admin(peer_id)
+                    if response.get('status') == 'success':
+                        self.ui.print_success(response.get('message', 'Peer removido'))
+                    else:
+                        self.ui.print_error(response.get('message', 'Erro ao remover peer'))
+                
+                self.ui.wait_for_enter()
+            
+            elif choice == '4':
+                # Editar peer
+                peer_id = self.ui.get_input("ID do Peer a editar")
+                self.ui.print_info("Deixe em branco para não alterar")
+                new_ip = self.ui.get_input("Novo IP (ou Enter para manter)")
+                new_port = self.ui.get_input("Nova Porta (ou Enter para manter)")
+                
+                try:
+                    port_val = int(new_port) if new_port else None
+                    response = self.network.edit_peer(
+                        peer_id, 
+                        new_ip if new_ip else None,
+                        port_val
+                    )
+                    if response.get('status') == 'success':
+                        self.ui.print_success(response.get('message', 'Peer atualizado'))
+                    else:
+                        self.ui.print_error(response.get('message', 'Erro ao editar peer'))
+                except ValueError:
+                    self.ui.print_error("Porta inválida")
+                
+                self.ui.wait_for_enter()
+            
+            elif choice == '5':
+                # Ver detalhes de um peer
+                peer_id = self.ui.get_input("ID do Peer")
+                response = self.network.get_peer_details(peer_id)
+                
+                if response.get('status') == 'success':
+                    peer_info = response.get('peer')
+                    self.ui.print_peer_details(peer_info)
+                    
+                    # Mostrar arquivos do peer
+                    files = peer_info.get('files', [])
+                    if files:
+                        print(f"\nArquivos ({len(files)}):")
+                        for f in files:
+                            print(f"  - {f['filename']} ({f['hash'][:16]}...)")
+                    else:
+                        print("\nNenhum arquivo compartilhado.")
+                else:
+                    self.ui.print_error(response.get('message', 'Peer não encontrado'))
+                
+                self.ui.wait_for_enter()
+            
+            elif choice == '0':
+                # Voltar ao menu principal
+                break
+            
+            else:
+                self.ui.print_error("Opção inválida")
+                time.sleep(1)
+    
     def run_cli(self):
         """Executa a interface CLI"""
         self.ui.clear_screen()
@@ -509,6 +644,10 @@ class Peer:
                 print(f"Heartbeat ativo: {'Sim' if self.heartbeat.running else 'Não'}")
                 self.ui.print_divider()
                 self.ui.wait_for_enter()
+            
+            elif choice == '8':
+                # Gerenciar Peers (Admin)
+                self.manage_peers_menu()
             
             elif choice == '0':
                 # Sair

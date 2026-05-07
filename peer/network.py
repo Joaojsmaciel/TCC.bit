@@ -134,6 +134,44 @@ class NetworkManager:
         }
         return self.send_to_tracker(message)
     
+    def add_peer_manual(self, peer_id, ip, port):
+        """Adiciona um peer manualmente (admin)"""
+        message = {
+            'command': 'ADD_PEER',
+            'peer_id': peer_id,
+            'ip': ip,
+            'port': port
+        }
+        return self.send_to_tracker(message)
+    
+    def remove_peer_admin(self, peer_id):
+        """Remove um peer (admin)"""
+        message = {
+            'command': 'REMOVE_PEER',
+            'peer_id': peer_id
+        }
+        return self.send_to_tracker(message)
+    
+    def edit_peer(self, peer_id, new_ip=None, new_port=None):
+        """Edita informações de um peer"""
+        message = {
+            'command': 'EDIT_PEER',
+            'peer_id': peer_id
+        }
+        if new_ip:
+            message['new_ip'] = new_ip
+        if new_port:
+            message['new_port'] = new_port
+        return self.send_to_tracker(message)
+    
+    def get_peer_details(self, peer_id):
+        """Obtém detalhes de um peer específico"""
+        message = {
+            'command': 'GET_PEER_DETAILS',
+            'peer_id': peer_id
+        }
+        return self.send_to_tracker(message)
+    
     def download_file_from_peer(self, peer_ip, peer_port, file_hash, save_path, filename=None, progress_callback=None):
         """Baixa um arquivo de outro peer"""
         try:

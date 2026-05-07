@@ -108,6 +108,14 @@ class Tracker:
                 response = self.list_files()
             elif command == 'UNREGISTER':
                 response = self.unregister_peer(request)
+            elif command == 'ADD_PEER':
+                response = self.add_peer_manual(request)
+            elif command == 'REMOVE_PEER':
+                response = self.remove_peer_admin(request)
+            elif command == 'EDIT_PEER':
+                response = self.edit_peer(request)
+            elif command == 'GET_PEER_DETAILS':
+                response = self.get_peer_details(request)
             else:
                 response = {'status': 'error', 'message': 'Comando desconhecido'}
             
@@ -267,6 +275,100 @@ class Tracker:
                 print(f"[TRACKER] Peer removido: {peer_id}")
         
         return {'status': 'success'}
+    
+    def add_peer_manual(self, request):
+        """Adiciona um peer manualmente (comando admin)"""
+        peer_id = request.get('peer_id')
+        ip = request.get('ip')
+        port = request.get('port')
+        
+        if not peer_id or not ip or not port:
+            return {'status': 'error', 'message': 'Dados incompletos (peer_id, ip, port)'}
+        
+        with self.lock:
+            self.peers[peer_id] = {
+                'ip': ip,
+                'port': port,
+                'last_heartbeat': datetime.now()
+            }
+            P2P_ACTIVE_PEERS.set(len(self.peers))
+        
+        print(f"[TRACKER] Peer adicionado manualmente: {peer_id} ({ip}:{port})")
+        return {'status': 'success', 'message': f'Peer {peer_id} adicionado com sucesso'}
+    
+    def remove_peer_admin(self, request):
+        """Remove um peer (comando admin)"""
+        peer_id = request.get('peer_id')
+        
+        if not peer_id:
+            return {'status': 'error', 'message': 'peer_id não fornecido'}
+        
+        with self.lock:
+            if peer_id in self.peers:
+                del self.peers[peer_id]
+                P2P_ACTIVE_PEERS.set(len(self.peers))
+                print(f"[TRACKER] Peer removido (admin): {peer_id}")
+                return {'status': 'success', 'message': f'Peer {peer_id} removido com sucesso'}
+            else:
+                return {'status': 'error', 'message': f'Peer {peer_id} não encontrado'}
+    
+    def edit_peer(self, request):
+        """Edita informações de um peer"""
+        peer_id = request.get('peer_id')
+        new_ip = request.get('new_ip')
+        new_port = request.get('new_port')
+        
+        if not peer_id:
+            return {'status': 'error', 'message': 'peer_id não fornecido'}
+        
+        with self.lock:
+            if peer_id not in self.peers:
+                return {'status': 'error', 'message': f'Peer {peer_id} não encontrado'}
+            
+            if new_ip:
+                self.peers[peer_id]['ip'] = new_ip
+            if new_port:
+                self.peers[peer_id]['port'] = new_port
+            
+            # Atualizar timestamp
+            self.peers[peer_id]['last_heartbeat'] = datetime.now()
+        
+        changes = []
+        if new_ip:
+            changes.append(f"IP: {new_ip}")
+        if new_port:
+            changes.append(f"Porta: {new_port}")
+        
+        print(f"[TRACKER] Peer editado: {peer_id} ({', '.join(changes)})")
+        return {'status': 'success', 'message': f'Peer {peer_id} atualizado com sucesso'}
+    
+    def get_peer_details(self, request):
+        """Retorna detalhes completos de um peer"""
+        peer_id = request.get('peer_id')
+        
+        if not peer_id:
+            return {'status': 'error', 'message': 'peer_id não fornecido'}
+        
+        with self.lock:
+            if peer_id not in self.peers:
+                return {'status': 'error', 'message': f'Peer {peer_id} não encontrado'}
+            
+            peer_info = self.peers[peer_id].copy()
+            peer_info['peer_id'] = peer_id
+            
+            # Adicionar lista de arquivos do peer
+            peer_files = []
+            for file_hash, file_info in self.files.items():
+                if peer_id in file_info['peers']:
+                    peer_files.append({
+                        'filename': file_info['filename'],
+                        'hash': file_hash
+                    })
+            
+            peer_info['files'] = peer_files
+            peer_info['last_heartbeat'] = peer_info['last_heartbeat'].isoformat()
+        
+        return {'status': 'success', 'peer': peer_info}
     
     def monitor_heartbeat(self):
         """Monitora peers inativos e remove automaticamente"""
